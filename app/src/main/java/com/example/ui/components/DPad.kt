@@ -71,51 +71,21 @@ fun DPad(
             return
         }
 
-        val halfArmW = width * 0.36f / 2f
-        val halfArmH = height * 0.36f / 2f
-
-        // 1. Direct hit on vertical cross arm -> Pure Up or Down (no horizontal bleed)
-        if (abs(dx) <= halfArmW) {
-            if (dy < -deadzone) {
-                updateDirection(up = true, down = false, left = false, right = false)
-                return
-            } else if (dy > deadzone) {
-                updateDirection(up = false, down = true, left = false, right = false)
-                return
-            }
-        }
-
-        // 2. Direct hit on horizontal cross arm -> Pure Left or Right (no vertical bleed)
-        if (abs(dy) <= halfArmH) {
-            if (dx < -deadzone) {
-                updateDirection(up = false, down = false, left = true, right = false)
-                return
-            } else if (dx > deadzone) {
+        // Strictly 4 individual directional buttons: exactly one active at a time!
+        if (abs(dx) > abs(dy)) {
+            // Horizontal dominant -> Pure Right or Pure Left
+            if (dx > 0) {
                 updateDirection(up = false, down = false, left = false, right = true)
-                return
+            } else {
+                updateDirection(up = false, down = false, left = true, right = false)
             }
-        }
-
-        // 3. Diagonal quadrants: calculate angle (-180 to 180) with clear non-overlapping sectors
-        val angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
-        when {
-            // Pure Right (-30° to 30°)
-            angle in -30f..30f -> updateDirection(up = false, down = false, left = false, right = true)
-            // Down-Right (30° to 60°)
-            angle in 30f..60f -> updateDirection(up = false, down = true, left = false, right = true)
-            // Pure Down (60° to 120°)
-            angle in 60f..120f -> updateDirection(up = false, down = true, left = false, right = false)
-            // Down-Left (120° to 150°)
-            angle in 120f..150f -> updateDirection(up = false, down = true, left = true, right = false)
-            // Pure Left (> 150° or < -150°)
-            angle > 150f || angle < -150f -> updateDirection(up = false, down = false, left = true, right = false)
-            // Up-Left (-150° to -120°)
-            angle in -150f..-120f -> updateDirection(up = true, down = false, left = true, right = false)
-            // Pure Up (-120° to -60°)
-            angle in -120f..-60f -> updateDirection(up = true, down = false, left = false, right = false)
-            // Up-Right (-60° to -30°)
-            angle in -60f..-30f -> updateDirection(up = true, down = false, left = false, right = true)
-            else -> updateDirection(false, false, false, false)
+        } else {
+            // Vertical dominant -> Pure Up or Pure Down
+            if (dy < 0) {
+                updateDirection(up = true, down = false, left = false, right = false)
+            } else {
+                updateDirection(up = false, down = true, left = false, right = false)
+            }
         }
     }
 
