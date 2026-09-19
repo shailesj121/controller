@@ -93,10 +93,11 @@ fun GameButton(
                     } finally {
                         isPressed = false
                         onPressChange(false)
-                        }
                     }
-                } else Modifier
-            ),
+                }
+            }
+        } else Modifier
+    ),
         contentAlignment = Alignment.Center
     ) {
         // Glowing outline & inner rim

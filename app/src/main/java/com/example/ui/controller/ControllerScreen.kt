@@ -100,6 +100,7 @@ import com.example.ui.theme.ElectricCyan
 import com.example.ui.theme.EmeraldGreen
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.TextTertiary
 import com.example.ui.theme.VividIndigo
 
 @Composable
