@@ -66,10 +66,18 @@ fun GameButton(
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
+                    val pointerId = down.id
                     isPressed = true
                     onPressChange(true)
 
-                    val upOrCancel = waitForUpOrCancellation()
+                    do {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.find { it.id == pointerId }
+                        if (change == null || !change.pressed) {
+                            break
+                        }
+                    } while (true)
+
                     isPressed = false
                     onPressChange(false)
                 }

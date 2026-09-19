@@ -357,36 +357,38 @@ class BluetoothHidGamepadManager(
             }
             report[6] = hat.toByte()
 
-            // 5. 16 Action Buttons (Standard USB/Bluetooth HID Gamepad button sequence):
-            // Button 1 (bit 0): A
-            // Button 2 (bit 1): B
-            // Button 3 (bit 2): X
-            // Button 4 (bit 3): Y
-            // Button 5 (bit 4): L1 (LB)
-            // Button 6 (bit 5): R1 (RB)
-            // Button 7 (bit 6): L2 (LT click)
-            // Button 8 (bit 7): R2 (RT click)
-            // Button 9 (bit 8): Select / Back
-            // Button 10 (bit 9): Start / Menu
-            // Button 11 (bit 10): L3 (Left thumb click)
-            // Button 12 (bit 11): R3 (Right thumb click)
-            // Button 13 (bit 12): Home / Guide
-            // Button 14 (bit 13): Turbo / Share
+            // 5. 16 Action Buttons (mapped to Linux kernel BTN_GAMEPAD and Android Generic.kl):
+            // Bit 0 (0x130 / key 304): BTN_A -> BUTTON_A (A button)
+            // Bit 1 (0x131 / key 305): BTN_B -> BUTTON_B (B button)
+            // Bit 2 (0x132 / key 306): BTN_C (legacy arcade button, not used)
+            // Bit 3 (0x133 / key 307): BTN_X -> BUTTON_X (X button)
+            // Bit 4 (0x134 / key 308): BTN_Y -> BUTTON_Y (Y button)
+            // Bit 5 (0x135 / key 309): BTN_Z (legacy arcade button, not used)
+            // Bit 6 (0x136 / key 310): BTN_TL -> BUTTON_L1 (L1 / Left Bumper)
+            // Bit 7 (0x137 / key 311): BTN_TR -> BUTTON_R1 (R1 / Right Bumper)
+            // Bit 8 (0x138 / key 312): BTN_TL2 -> BUTTON_L2 (L2 / Left Trigger)
+            // Bit 9 (0x139 / key 313): BTN_TR2 -> BUTTON_R2 (R2 / Right Trigger)
+            // Bit 10 (0x13A / key 314): BTN_SELECT -> BUTTON_SELECT (Select / Back)
+            // Bit 11 (0x13B / key 315): BTN_START -> BUTTON_START (Start / Pause)
+            // Bit 12 (0x13C / key 316): BTN_MODE -> BUTTON_MODE (Home / Guide)
+            // Bit 13 (0x13D / key 317): BTN_THUMBL -> BUTTON_THUMBL (L3 thumbstick click)
+            // Bit 14 (0x13E / key 318): BTN_THUMBR -> BUTTON_THUMBR (R3 thumbstick click)
+            // Bit 15 (0x13F / key 319): Turbo / Share
             var buttons = 0
             if (state.btnA) buttons = buttons or (1 shl 0)
             if (state.btnB) buttons = buttons or (1 shl 1)
-            if (state.btnX) buttons = buttons or (1 shl 2)
-            if (state.btnY) buttons = buttons or (1 shl 3)
-            if (state.btnL1) buttons = buttons or (1 shl 4)
-            if (state.btnR1) buttons = buttons or (1 shl 5)
-            if (state.btnL2 || state.leftTrigger > 0.5f) buttons = buttons or (1 shl 6)
-            if (state.btnR2 || state.rightTrigger > 0.5f) buttons = buttons or (1 shl 7)
-            if (state.btnSelect) buttons = buttons or (1 shl 8)
-            if (state.btnStart) buttons = buttons or (1 shl 9)
-            if (state.btnL3) buttons = buttons or (1 shl 10)
-            if (state.btnR3) buttons = buttons or (1 shl 11)
+            if (state.btnX) buttons = buttons or (1 shl 3)
+            if (state.btnY) buttons = buttons or (1 shl 4)
+            if (state.btnL1) buttons = buttons or (1 shl 6)
+            if (state.btnR1) buttons = buttons or (1 shl 7)
+            if (state.btnL2 || state.leftTrigger > 0.5f) buttons = buttons or (1 shl 8)
+            if (state.btnR2 || state.rightTrigger > 0.5f) buttons = buttons or (1 shl 9)
+            if (state.btnSelect) buttons = buttons or (1 shl 10)
+            if (state.btnStart) buttons = buttons or (1 shl 11)
             if (state.btnHome) buttons = buttons or (1 shl 12)
-            if (state.btnTurbo) buttons = buttons or (1 shl 13)
+            if (state.btnL3) buttons = buttons or (1 shl 13)
+            if (state.btnR3) buttons = buttons or (1 shl 14)
+            if (state.btnTurbo) buttons = buttons or (1 shl 15)
 
             report[7] = (buttons and 0xFF).toByte()
             report[8] = ((buttons shr 8) and 0xFF).toByte()
