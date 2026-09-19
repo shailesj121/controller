@@ -2,6 +2,8 @@ package com.example.ui.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -125,8 +127,8 @@ fun DPad(
                 val inputWidth = size.width.toFloat()
                 val inputHeight = size.height.toFloat()
 
-                androidx.compose.foundation.gestures.awaitEachGesture {
-                    val down = androidx.compose.foundation.gestures.awaitFirstDown(requireUnconsumed = false)
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
                     val pointerId = down.id
                     handleOffset(down.position, inputWidth, inputHeight)
 
