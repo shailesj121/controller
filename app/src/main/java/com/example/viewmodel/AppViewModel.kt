@@ -10,6 +10,7 @@ import com.example.model.ConnectionMedium
 import com.example.model.ControllerLayout
 import com.example.model.DiscoveredHost
 import com.example.model.GamepadState
+import com.example.model.AppSettingsPreferences
 import com.example.model.CustomLayoutConfig
 import com.example.model.CustomLayoutPreferences
 import com.example.model.ElementLayoutConfig
@@ -34,21 +35,25 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val hapticManager = HapticFeedbackManager(application)
     val motionManager = MotionSensorManager(application)
     private val customLayoutPrefs = CustomLayoutPreferences(application)
+    private val appSettingsPrefs = AppSettingsPreferences(application)
 
-    private val _appRole = MutableStateFlow(AppRole.CONTROLLER)
+    private val _appRole = MutableStateFlow(appSettingsPrefs.getAppRole())
     val appRole: StateFlow<AppRole> = _appRole.asStateFlow()
 
-    private val _connectionMedium = MutableStateFlow(ConnectionMedium.WIFI)
+    private val _connectionMedium = MutableStateFlow(appSettingsPrefs.getConnectionMedium())
     val connectionMedium: StateFlow<ConnectionMedium> = _connectionMedium.asStateFlow()
 
-    private val _currentLayout = MutableStateFlow(ControllerLayout.MODERN)
+    private val _currentLayout = MutableStateFlow(appSettingsPrefs.getControllerLayout())
     val currentLayout: StateFlow<ControllerLayout> = _currentLayout.asStateFlow()
 
-    private val _isHapticEnabled = MutableStateFlow(true)
+    private val _isHapticEnabled = MutableStateFlow(appSettingsPrefs.isHapticEnabled())
     val isHapticEnabled: StateFlow<Boolean> = _isHapticEnabled.asStateFlow()
 
-    private val _isGyroEnabled = MutableStateFlow(false)
+    private val _isGyroEnabled = MutableStateFlow(appSettingsPrefs.isGyroEnabled())
     val isGyroEnabled: StateFlow<Boolean> = _isGyroEnabled.asStateFlow()
+
+    private val _isRacingJoystickMode = MutableStateFlow(appSettingsPrefs.isRacingJoystickMode())
+    val isRacingJoystickMode: StateFlow<Boolean> = _isRacingJoystickMode.asStateFlow()
 
     private val _localGamepadState = MutableStateFlow(GamepadState())
     val localGamepadState: StateFlow<GamepadState> = _localGamepadState.asStateFlow()
@@ -63,11 +68,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedElementKey = MutableStateFlow<String?>(CustomLayoutConfig.KEY_ACTION_BUTTONS)
     val selectedElementKey: StateFlow<String?> = _selectedElementKey.asStateFlow()
 
-    private val _targetIp = MutableStateFlow("192.168.1.100")
-    val targetIp: StateFlow<String> = _targetIp.asStateFlow()
-
-    private val _targetPort = MutableStateFlow(8888)
+    private val _targetPort = MutableStateFlow(appSettingsPrefs.getTargetPort())
     val targetPort: StateFlow<Int> = _targetPort.asStateFlow()
+
+    private val _targetIp = MutableStateFlow(
+        appSettingsPrefs.getTargetIp(
+            NetworkUtils.getLocalIpAddress().let { if (it != "127.0.0.1") it else "192.168.1.100" }
+        )
+    )
+    val targetIp: StateFlow<String> = _targetIp.asStateFlow()
 
     val client = GamepadClient(
         scope = viewModelScope,
@@ -116,14 +125,32 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     init {
-        // Automatically default candidate IP from network
+        // Apply saved hardware preferences
+        hapticManager.isEnabled = _isHapticEnabled.value
+        motionManager.isEnabled = _isGyroEnabled.value
+
+        // If local IP detected and no custom IP was previously saved, update target IP
         val localIp = NetworkUtils.getLocalIpAddress()
-        if (localIp != "127.0.0.1") {
+        if (localIp != "127.0.0.1" && appSettingsPrefs.getTargetIp("").isBlank()) {
             _targetIp.value = localIp
         }
 
+        // Initialize connection managers according to saved medium
+        when (_connectionMedium.value) {
+            ConnectionMedium.BLUETOOTH -> {
+                bluetoothManager.checkBluetoothStatus()
+                if (_appRole.value == AppRole.RECEIVER) {
+                    bluetoothManager.startServer()
+                }
+            }
+            ConnectionMedium.BLUETOOTH_HID -> {
+                hidManager.refreshPairedDevices()
+            }
+            ConnectionMedium.WIFI -> {}
+        }
+
         // Start server in background so receiver is ready whenever user switches to it
-        server.start(8888)
+        server.start(_targetPort.value)
 
         // Observe motion sensors if enabled
         viewModelScope.launch {
@@ -143,6 +170,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setConnectionMedium(medium: ConnectionMedium) {
         _connectionMedium.value = medium
+        appSettingsPrefs.setConnectionMedium(medium)
         when (medium) {
             ConnectionMedium.BLUETOOTH -> {
                 bluetoothManager.checkBluetoothStatus()
@@ -159,16 +187,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun connectBluetooth(address: String) {
         _connectionMedium.value = ConnectionMedium.BLUETOOTH
+        appSettingsPrefs.setConnectionMedium(ConnectionMedium.BLUETOOTH)
         bluetoothManager.connectToDevice(address)
     }
 
     fun connectBluetoothHid(address: String) {
         _connectionMedium.value = ConnectionMedium.BLUETOOTH_HID
+        appSettingsPrefs.setConnectionMedium(ConnectionMedium.BLUETOOTH_HID)
         hidManager.connectToHost(address)
     }
 
     fun setAppRole(role: AppRole) {
         _appRole.value = role
+        appSettingsPrefs.setAppRole(role)
         if (role == AppRole.RECEIVER) {
             server.start(_targetPort.value)
             if (_connectionMedium.value == ConnectionMedium.BLUETOOTH) {
@@ -181,22 +212,40 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setLayout(layout: ControllerLayout) {
         _currentLayout.value = layout
+        appSettingsPrefs.setControllerLayout(layout)
     }
 
     fun toggleHaptic(enabled: Boolean) {
         _isHapticEnabled.value = enabled
         hapticManager.isEnabled = enabled
+        appSettingsPrefs.setHapticEnabled(enabled)
     }
 
     fun toggleGyro(enabled: Boolean) {
         _isGyroEnabled.value = enabled
         motionManager.isEnabled = enabled
+        appSettingsPrefs.setGyroEnabled(enabled)
+    }
+
+    fun setRacingJoystickMode(enabled: Boolean) {
+        _isRacingJoystickMode.value = enabled
+        appSettingsPrefs.setRacingJoystickMode(enabled)
+    }
+
+    fun setTargetHost(ip: String, port: Int) {
+        _targetIp.value = ip
+        _targetPort.value = port
+        appSettingsPrefs.setTargetIp(ip)
+        appSettingsPrefs.setTargetPort(port)
     }
 
     fun connectToHost(ip: String, port: Int = 8888) {
         _connectionMedium.value = ConnectionMedium.WIFI
+        appSettingsPrefs.setConnectionMedium(ConnectionMedium.WIFI)
         _targetIp.value = ip
         _targetPort.value = port
+        appSettingsPrefs.setTargetIp(ip)
+        appSettingsPrefs.setTargetPort(port)
         client.connect(ip, port)
     }
 
@@ -234,6 +283,28 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun triggerHapticTick() {
+        if (_isHapticEnabled.value) {
+            hapticManager.tick()
+        }
+    }
+
+    fun triggerHapticHeavy() {
+        if (_isHapticEnabled.value) {
+            hapticManager.heavyClick()
+        }
+    }
+
+    fun triggerAccelerationPulse(progress: Float) {
+        if (_isHapticEnabled.value) {
+            hapticManager.accelerationPulse(progress)
+        }
+    }
+
+    fun stopHaptic() {
+        hapticManager.stop()
+    }
+
     fun sendServerRumble(durationMs: Long, intensity: Float) {
         server.sendRumble(durationMs, intensity)
         bluetoothManager.sendRumble(durationMs, intensity)
@@ -248,7 +319,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setCustomEditMode(enabled: Boolean) {
         _isCustomEditMode.value = enabled
         if (enabled && _selectedElementKey.value == null) {
-            _selectedElementKey.value = CustomLayoutConfig.KEY_ACTION_BUTTONS
+            _selectedElementKey.value = if (_currentLayout.value == ControllerLayout.RACING) {
+                CustomLayoutConfig.KEY_STEERING_WHEEL
+            } else {
+                CustomLayoutConfig.KEY_ACTION_BUTTONS
+            }
+        } else if (!enabled) {
+            // Auto-save changes whenever exiting custom edit mode so user never loses their tweaks
+            customLayoutPrefs.saveLayoutConfig(_customLayoutConfig.value)
         }
     }
 

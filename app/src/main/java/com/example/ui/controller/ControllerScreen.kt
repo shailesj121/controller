@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -51,10 +53,12 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,6 +76,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlin.math.atan2
 import com.example.model.ConnectionMedium
 import com.example.model.ControllerLayout
@@ -120,6 +125,12 @@ fun ControllerScreen(
     onOpenSettings: () -> Unit,
     onSwitchToReceiver: () -> Unit,
     onTriggerHaptic: () -> Unit,
+    onTriggerHapticTick: () -> Unit = onTriggerHaptic,
+    onTriggerHapticHeavy: () -> Unit = onTriggerHaptic,
+    onTriggerAccelerationPulse: (Float) -> Unit = {},
+    onStopHaptic: () -> Unit = {},
+    isRacingJoystickMode: Boolean = false,
+    onToggleRacingJoystickMode: (Boolean) -> Unit = {},
     onToggleCustomize: () -> Unit = {},
     onSelectElement: (String) -> Unit = {},
     onDragElementDelta: (elementKey: String, dx: Float, dy: Float) -> Unit = { _, _, _ -> },
@@ -167,8 +178,19 @@ fun ControllerScreen(
                 ControllerLayout.RACING -> RacingControllerLayout(
                     state = gamepadState,
                     isLandscape = isLandscape,
+                    customLayout = customLayout,
+                    isEditMode = isCustomEditMode,
+                    selectedElementKey = selectedElementKey,
+                    isJoystickMode = isRacingJoystickMode,
+                    onToggleJoystickMode = onToggleRacingJoystickMode,
+                    onSelectElement = onSelectElement,
+                    onDragOffsetDelta = onDragElementDelta,
                     onUpdateState = onUpdateState,
-                    onTriggerHaptic = onTriggerHaptic
+                    onTriggerHaptic = onTriggerHaptic,
+                    onTriggerHapticTick = onTriggerHapticTick,
+                    onTriggerHapticHeavy = onTriggerHapticHeavy,
+                    onTriggerAccelerationPulse = onTriggerAccelerationPulse,
+                    onStopHaptic = onStopHaptic
                 )
             }
         }
@@ -701,7 +723,7 @@ fun ModernGamepadLayout(
                     ) {
                         AnalogStick(
                             label = "LS",
-                            size = 140.dp,
+                            size = 130.dp,
                             enabled = !isEditMode,
                             onMove = { x, y ->
                                 safeUpdateState { s -> s.copy(leftStickX = x, leftStickY = y) }
@@ -719,7 +741,7 @@ fun ModernGamepadLayout(
                         onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_DPAD, dx, dy) }
                     ) {
                         DPad(
-                            dpadSize = 130.dp,
+                            dpadSize = 125.dp,
                             enabled = !isEditMode,
                             onDirectionChange = { up, down, left, right ->
                                 if (up || down || left || right) safeTriggerHaptic()
@@ -755,8 +777,8 @@ fun ModernGamepadLayout(
                         onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_TOUCHPAD, dx, dy) }
                     ) {
                         Touchpad(
-                            width = 185.dp,
-                            height = 100.dp,
+                            width = 165.dp,
+                            height = 96.dp,
                             enabled = !isEditMode,
                             onRelativeMove = { dx, dy ->
                                 safeUpdateState { s ->
@@ -870,7 +892,7 @@ fun ModernGamepadLayout(
                     ) {
                         AnalogStick(
                             label = "RS",
-                            size = 140.dp,
+                            size = 130.dp,
                             enabled = !isEditMode,
                             onMove = { x, y ->
                                 safeUpdateState { s -> s.copy(rightStickX = x, rightStickY = y) }
@@ -889,6 +911,8 @@ fun ModernGamepadLayout(
                     ) {
                         DiamondActionButtons(
                             state = state,
+                            size = 136.dp,
+                            buttonSize = 46.dp,
                             enabled = !isEditMode,
                             onButtonChange = { btn, pressed ->
                                 if (pressed) safeTriggerHaptic()
@@ -1145,16 +1169,26 @@ fun ModernGamepadLayout(
 @Composable
 fun DiamondActionButtons(
     state: GamepadState,
-    buttonSize: androidx.compose.ui.unit.Dp = 52.dp,
+    size: androidx.compose.ui.unit.Dp = 136.dp,
+    buttonSize: androidx.compose.ui.unit.Dp = 46.dp,
     enabled: Boolean = true,
     onButtonChange: (String, Boolean) -> Unit
 ) {
     Box(
         modifier = Modifier
-            .size(150.dp)
+            .requiredSize(size)
+            .aspectRatio(1f)
             .testTag("action_buttons_diamond"),
         contentAlignment = Alignment.Center
     ) {
+        // Subtle background disc for tactile depth
+        Box(
+            modifier = Modifier
+                .size(size * 0.96f)
+                .clip(CircleShape)
+                .background(Color(0x14182338))
+        )
+
         // Y button (Top)
         GameButton(
             label = "Y",
@@ -1329,9 +1363,40 @@ fun RetroArcadeLayout(
 fun RacingControllerLayout(
     state: GamepadState,
     isLandscape: Boolean,
+    customLayout: CustomLayoutConfig = CustomLayoutConfig(),
+    isEditMode: Boolean = false,
+    selectedElementKey: String? = null,
+    isJoystickMode: Boolean = false,
+    onToggleJoystickMode: (Boolean) -> Unit = {},
+    onSelectElement: (String) -> Unit = {},
+    onDragOffsetDelta: (String, Float, Float) -> Unit = { _, _, _ -> },
     onUpdateState: ((GamepadState) -> GamepadState) -> Unit,
-    onTriggerHaptic: () -> Unit
+    onTriggerHaptic: () -> Unit,
+    onTriggerHapticTick: () -> Unit = onTriggerHaptic,
+    onTriggerHapticHeavy: () -> Unit = onTriggerHaptic,
+    onTriggerAccelerationPulse: (Float) -> Unit = {},
+    onStopHaptic: () -> Unit = {}
 ) {
+
+    val safeTriggerHaptic: () -> Unit = {
+        if (!isEditMode) onTriggerHaptic()
+    }
+    val safeTriggerHapticTick: () -> Unit = {
+        if (!isEditMode) onTriggerHapticTick()
+    }
+    val safeTriggerHapticHeavy: () -> Unit = {
+        if (!isEditMode) onTriggerHapticHeavy()
+    }
+    val safeTriggerAccelerationPulse: (Float) -> Unit = { progress ->
+        if (!isEditMode) onTriggerAccelerationPulse(progress)
+    }
+    val safeStopHaptic: () -> Unit = {
+        if (!isEditMode) onStopHaptic()
+    }
+    val safeUpdateState: ((GamepadState) -> GamepadState) -> Unit = { transform ->
+        if (!isEditMode) onUpdateState(transform)
+    }
+
     if (isLandscape) {
         Row(
             modifier = Modifier
@@ -1340,7 +1405,7 @@ fun RacingControllerLayout(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // LEFT: Steering Wheel
+            // LEFT: Steering Wheel or Navigation Joystick
             Column(
                 modifier = Modifier
                     .weight(1.3f)
@@ -1348,31 +1413,105 @@ fun RacingControllerLayout(
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = "STEERING",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = ElectricCyan,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 1.sp
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-
-                SteeringWheel(
-                    size = 205.dp,
-                    onSteer = { steer ->
-                        onUpdateState { s ->
-                            s.copy(
-                                leftStickX = steer,
-                                dpadLeft = steer < -0.3f,
-                                dpadRight = steer > 0.3f
+                CustomizableElement(
+                    elementKey = CustomLayoutConfig.KEY_STEERING_WHEEL,
+                    title = if (isJoystickMode) "JOYSTICK" else "STEERING",
+                    config = customLayout.steeringWheel,
+                    isEditMode = isEditMode,
+                    isSelected = selectedElementKey == CustomLayoutConfig.KEY_STEERING_WHEEL,
+                    onSelect = { onSelectElement(CustomLayoutConfig.KEY_STEERING_WHEEL) },
+                    onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_STEERING_WHEEL, dx, dy) }
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        // Quick Mode Toggle Button (Steering Wheel <-> Nav Joystick)
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Color(0x55111724))
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isJoystickMode) VividIndigo else ElectricCyan.copy(alpha = 0.5f),
+                                    shape = RoundedCornerShape(16.dp)
+                                )
+                                .clickable(enabled = !isEditMode) {
+                                    onToggleJoystickMode(!isJoystickMode)
+                                    safeTriggerHaptic()
+                                    safeUpdateState { s ->
+                                        s.copy(
+                                            leftStickX = 0f,
+                                            leftStickY = 0f,
+                                            dpadUp = false,
+                                            dpadDown = false,
+                                            dpadLeft = false,
+                                            dpadRight = false
+                                        )
+                                    }
+                                }
+                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isJoystickMode) Icons.Default.SportsEsports else Icons.Default.Tune,
+                                contentDescription = "Toggle Control",
+                                tint = if (isJoystickMode) VividIndigo else ElectricCyan,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Text(
+                                text = if (isJoystickMode) "NAV JOYSTICK" else "STEERING WHEEL",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isJoystickMode) TextPrimary else ElectricCyan,
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 0.5.sp,
+                                fontSize = 10.sp
                             )
                         }
-                    },
-                    onTriggerHaptic = onTriggerHaptic
-                )
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        if (isJoystickMode) {
+                            AnalogStick(
+                                label = "NAV",
+                                size = 190.dp,
+                                enabled = !isEditMode,
+                                onMove = { x, y ->
+                                    safeUpdateState { s ->
+                                        s.copy(
+                                            leftStickX = x,
+                                            leftStickY = y,
+                                            dpadUp = y < -0.35f,
+                                            dpadDown = y > 0.35f,
+                                            dpadLeft = x < -0.35f,
+                                            dpadRight = x > 0.35f
+                                        )
+                                    }
+                                }
+                            )
+                        } else {
+                            SteeringWheel(
+                                size = 195.dp,
+                                onSteer = { steer ->
+                                    safeUpdateState { s ->
+                                        s.copy(
+                                            leftStickX = steer,
+                                            dpadLeft = steer < -0.3f,
+                                            dpadRight = steer > 0.3f
+                                        )
+                                    }
+                                },
+                                onTriggerHaptic = safeTriggerHaptic,
+                                onTriggerHapticTick = safeTriggerHapticTick,
+                                onTriggerHapticHeavy = safeTriggerHapticHeavy
+                            )
+                        }
+                    }
+                }
             }
 
-            // CENTER: Extra Functions (NOS, Handbrake, Reset, Pause)
+            // CENTER: Extra Functions (NOS, Drift, Reset, Pause)
             Column(
                 modifier = Modifier
                     .weight(0.9f)
@@ -1380,71 +1519,90 @@ fun RacingControllerLayout(
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = "SYSTEMS",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondary,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                CustomizableElement(
+                    elementKey = CustomLayoutConfig.KEY_RACING_SYSTEMS,
+                    title = "SYSTEMS",
+                    config = customLayout.racingSystems,
+                    isEditMode = isEditMode,
+                    isSelected = selectedElementKey == CustomLayoutConfig.KEY_RACING_SYSTEMS,
+                    onSelect = { onSelectElement(CustomLayoutConfig.KEY_RACING_SYSTEMS) },
+                    onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_RACING_SYSTEMS, dx, dy) }
                 ) {
-                    RacingExtraButton(
-                        label = "NOS",
-                        subLabel = "NITRO",
-                        accentColor = VividIndigo,
-                        size = 50.dp,
-                        onPressChange = {
-                            if (it) onTriggerHaptic()
-                            onUpdateState { s -> s.copy(btnX = it, btnTurbo = it) }
-                        }
-                    )
-                    RacingExtraButton(
-                        label = "DRIFT",
-                        subLabel = "E-BRAKE",
-                        accentColor = CoralRed,
-                        size = 50.dp,
-                        onPressChange = {
-                            if (it) onTriggerHaptic()
-                            onUpdateState { s -> s.copy(btnL1 = it) }
-                        }
-                    )
-                }
+                    Column(
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "SYSTEMS",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RacingExtraButton(
+                                label = "NOS",
+                                subLabel = "NITRO",
+                                accentColor = VividIndigo,
+                                size = 50.dp,
+                                enabled = !isEditMode,
+                                onPressChange = {
+                                    if (it) safeTriggerHaptic()
+                                    safeUpdateState { s -> s.copy(btnX = it, btnTurbo = it) }
+                                }
+                            )
+                            RacingExtraButton(
+                                label = "DRIFT",
+                                subLabel = "E-BRAKE",
+                                accentColor = CoralRed,
+                                size = 50.dp,
+                                enabled = !isEditMode,
+                                onPressChange = {
+                                    if (it) safeTriggerHaptic()
+                                    safeUpdateState { s -> s.copy(btnL1 = it) }
+                                }
+                            )
+                        }
 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RacingExtraButton(
-                        label = "RESET",
-                        subLabel = "CAR",
-                        accentColor = ButtonYColor,
-                        size = 50.dp,
-                        onPressChange = {
-                            if (it) onTriggerHaptic()
-                            onUpdateState { s -> s.copy(btnY = it) }
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RacingExtraButton(
+                                label = "RESET",
+                                subLabel = "CAR",
+                                accentColor = ButtonYColor,
+                                size = 50.dp,
+                                enabled = !isEditMode,
+                                onPressChange = {
+                                    if (it) safeTriggerHaptic()
+                                    safeUpdateState { s -> s.copy(btnY = it) }
+                                }
+                            )
+                            RacingExtraButton(
+                                label = "PAUSE",
+                                subLabel = "MENU",
+                                accentColor = ElectricCyan,
+                                size = 50.dp,
+                                enabled = !isEditMode,
+                                onPressChange = {
+                                    if (it) safeTriggerHaptic()
+                                    safeUpdateState { s -> s.copy(btnStart = it) }
+                                }
+                            )
                         }
-                    )
-                    RacingExtraButton(
-                        label = "PAUSE",
-                        subLabel = "MENU",
-                        accentColor = ElectricCyan,
-                        size = 50.dp,
-                        onPressChange = {
-                            if (it) onTriggerHaptic()
-                            onUpdateState { s -> s.copy(btnStart = it) }
-                        }
-                    )
+                    }
                 }
             }
 
-            // RIGHT: ONLY TWO BUTTONS (Brake/Reverse and Accelerate/Gas)
+            // RIGHT: Pedals (Brake/Reverse and Accelerate/Gas)
             Column(
                 modifier = Modifier
                     .weight(1.3f)
@@ -1452,58 +1610,78 @@ fun RacingControllerLayout(
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = "PEDALS",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondary,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                CustomizableElement(
+                    elementKey = CustomLayoutConfig.KEY_PEDALS,
+                    title = "PEDALS",
+                    config = customLayout.pedals,
+                    isEditMode = isEditMode,
+                    isSelected = selectedElementKey == CustomLayoutConfig.KEY_PEDALS,
+                    onSelect = { onSelectElement(CustomLayoutConfig.KEY_PEDALS) },
+                    onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_PEDALS, dx, dy) }
                 ) {
-                    // Brake / Reverse Pedal
-                    PedalButton(
-                        label = "BRAKE",
-                        subLabel = "REVERSE",
-                        color = CoralRed,
-                        width = 96.dp,
-                        height = 175.dp,
-                        onPressChange = {
-                            if (it) onTriggerHaptic()
-                            onUpdateState { s ->
-                                s.copy(
-                                    btnB = it,
-                                    btnL2 = it,
-                                    leftTrigger = if (it) 1f else 0f,
-                                    dpadDown = it
-                                )
-                            }
-                        }
-                    )
+                    Column(
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "PEDALS",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
 
-                    // Accelerate / Gas Pedal
-                    PedalButton(
-                        label = "ACCEL",
-                        subLabel = "GAS",
-                        color = EmeraldGreen,
-                        width = 96.dp,
-                        height = 175.dp,
-                        onPressChange = {
-                            if (it) onTriggerHaptic()
-                            onUpdateState { s ->
-                                s.copy(
-                                    btnA = it,
-                                    btnR2 = it,
-                                    rightTrigger = if (it) 1f else 0f,
-                                    dpadUp = it
-                                )
-                            }
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Brake / Reverse Pedal
+                            PedalButton(
+                                label = "BRAKE",
+                                subLabel = "REVERSE",
+                                color = CoralRed,
+                                width = 96.dp,
+                                height = 175.dp,
+                                enabled = !isEditMode,
+                                onPressChange = {
+                                    if (it) safeTriggerHaptic()
+                                    safeUpdateState { s ->
+                                        s.copy(
+                                            btnB = it,
+                                            btnL2 = it,
+                                            leftTrigger = if (it) 1f else 0f,
+                                            dpadDown = it
+                                        )
+                                    }
+                                }
+                            )
+
+                            // Accelerate / Gas Pedal
+                            PedalButton(
+                                label = "ACCEL",
+                                subLabel = "GAS",
+                                color = EmeraldGreen,
+                                width = 96.dp,
+                                height = 175.dp,
+                                enabled = !isEditMode,
+                                isAccelerator = true,
+                                onPressChange = {
+                                    if (it) safeTriggerHaptic()
+                                    safeUpdateState { s ->
+                                        s.copy(
+                                            btnA = it,
+                                            btnR2 = it,
+                                            rightTrigger = if (it) 1f else 0f,
+                                            dpadUp = it
+                                        )
+                                    }
+                                },
+                                onAccelerationRumble = safeTriggerAccelerationPulse,
+                                onStopHaptic = safeStopHaptic
+                            )
                         }
-                    )
+                    }
                 }
             }
         }
@@ -1516,119 +1694,219 @@ fun RacingControllerLayout(
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Top: Steering Wheel
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally
+            // Top: Steering Wheel or Navigation Joystick
+            CustomizableElement(
+                elementKey = CustomLayoutConfig.KEY_STEERING_WHEEL,
+                title = if (isJoystickMode) "JOYSTICK" else "STEERING",
+                config = customLayout.steeringWheel,
+                isEditMode = isEditMode,
+                isSelected = selectedElementKey == CustomLayoutConfig.KEY_STEERING_WHEEL,
+                onSelect = { onSelectElement(CustomLayoutConfig.KEY_STEERING_WHEEL) },
+                onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_STEERING_WHEEL, dx, dy) }
             ) {
-                Text(
-                    text = "STEERING",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = ElectricCyan,
-                    fontWeight = FontWeight.ExtraBold
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                SteeringWheel(
-                    size = 190.dp,
-                    onSteer = { steer ->
-                        onUpdateState { s ->
-                            s.copy(
-                                leftStickX = steer,
-                                dpadLeft = steer < -0.3f,
-                                dpadRight = steer > 0.3f
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Quick Mode Toggle Button
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0x55111724))
+                            .border(
+                                width = 1.dp,
+                                color = if (isJoystickMode) VividIndigo else ElectricCyan.copy(alpha = 0.5f),
+                                shape = RoundedCornerShape(16.dp)
                             )
-                        }
-                    },
-                    onTriggerHaptic = onTriggerHaptic
-                )
+                            .clickable(enabled = !isEditMode) {
+                                onToggleJoystickMode(!isJoystickMode)
+                                safeTriggerHaptic()
+                                safeUpdateState { s ->
+                                    s.copy(
+                                        leftStickX = 0f,
+                                        leftStickY = 0f,
+                                        dpadUp = false,
+                                        dpadDown = false,
+                                        dpadLeft = false,
+                                        dpadRight = false
+                                    )
+                                }
+                            }
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isJoystickMode) Icons.Default.SportsEsports else Icons.Default.Tune,
+                            contentDescription = "Toggle Control",
+                            tint = if (isJoystickMode) VividIndigo else ElectricCyan,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Text(
+                            text = if (isJoystickMode) "NAV JOYSTICK" else "STEERING WHEEL",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isJoystickMode) TextPrimary else ElectricCyan,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 0.5.sp,
+                            fontSize = 10.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    if (isJoystickMode) {
+                        AnalogStick(
+                            label = "NAV",
+                            size = 180.dp,
+                            enabled = !isEditMode,
+                            onMove = { x, y ->
+                                safeUpdateState { s ->
+                                    s.copy(
+                                        leftStickX = x,
+                                        leftStickY = y,
+                                        dpadUp = y < -0.35f,
+                                        dpadDown = y > 0.35f,
+                                        dpadLeft = x < -0.35f,
+                                        dpadRight = x > 0.35f
+                                    )
+                                }
+                            }
+                        )
+                    } else {
+                        SteeringWheel(
+                            size = 185.dp,
+                            onSteer = { steer ->
+                                safeUpdateState { s ->
+                                    s.copy(
+                                        leftStickX = steer,
+                                        dpadLeft = steer < -0.3f,
+                                        dpadRight = steer > 0.3f
+                                    )
+                                }
+                            },
+                            onTriggerHaptic = safeTriggerHaptic,
+                            onTriggerHapticTick = safeTriggerHapticTick,
+                            onTriggerHapticHeavy = safeTriggerHapticHeavy
+                        )
+                    }
+                }
             }
 
             // Middle: Extra Systems
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
+            CustomizableElement(
+                elementKey = CustomLayoutConfig.KEY_RACING_SYSTEMS,
+                title = "SYSTEMS",
+                config = customLayout.racingSystems,
+                isEditMode = isEditMode,
+                isSelected = selectedElementKey == CustomLayoutConfig.KEY_RACING_SYSTEMS,
+                onSelect = { onSelectElement(CustomLayoutConfig.KEY_RACING_SYSTEMS) },
+                onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_RACING_SYSTEMS, dx, dy) }
             ) {
-                RacingExtraButton(
-                    label = "NOS",
-                    accentColor = VividIndigo,
-                    size = 48.dp,
-                    onPressChange = {
-                        if (it) onTriggerHaptic()
-                        onUpdateState { s -> s.copy(btnX = it, btnTurbo = it) }
-                    }
-                )
-                RacingExtraButton(
-                    label = "DRIFT",
-                    accentColor = CoralRed,
-                    size = 48.dp,
-                    onPressChange = {
-                        if (it) onTriggerHaptic()
-                        onUpdateState { s -> s.copy(btnL1 = it) }
-                    }
-                )
-                RacingExtraButton(
-                    label = "RESET",
-                    accentColor = ButtonYColor,
-                    size = 48.dp,
-                    onPressChange = {
-                        if (it) onTriggerHaptic()
-                        onUpdateState { s -> s.copy(btnY = it) }
-                    }
-                )
-                RacingExtraButton(
-                    label = "PAUSE",
-                    accentColor = ElectricCyan,
-                    size = 48.dp,
-                    onPressChange = {
-                        if (it) onTriggerHaptic()
-                        onUpdateState { s -> s.copy(btnStart = it) }
-                    }
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RacingExtraButton(
+                        label = "NOS",
+                        accentColor = VividIndigo,
+                        size = 48.dp,
+                        enabled = !isEditMode,
+                        onPressChange = {
+                            if (it) safeTriggerHaptic()
+                            safeUpdateState { s -> s.copy(btnX = it, btnTurbo = it) }
+                        }
+                    )
+                    RacingExtraButton(
+                        label = "DRIFT",
+                        accentColor = CoralRed,
+                        size = 48.dp,
+                        enabled = !isEditMode,
+                        onPressChange = {
+                            if (it) safeTriggerHaptic()
+                            safeUpdateState { s -> s.copy(btnL1 = it) }
+                        }
+                    )
+                    RacingExtraButton(
+                        label = "RESET",
+                        accentColor = ButtonYColor,
+                        size = 48.dp,
+                        enabled = !isEditMode,
+                        onPressChange = {
+                            if (it) safeTriggerHaptic()
+                            safeUpdateState { s -> s.copy(btnY = it) }
+                        }
+                    )
+                    RacingExtraButton(
+                        label = "PAUSE",
+                        accentColor = ElectricCyan,
+                        size = 48.dp,
+                        enabled = !isEditMode,
+                        onPressChange = {
+                            if (it) safeTriggerHaptic()
+                            safeUpdateState { s -> s.copy(btnStart = it) }
+                        }
+                    )
+                }
             }
 
-            // Bottom: ONLY TWO BUTTONS (Brake & Accel)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
+            // Bottom: Pedals (Brake & Accel)
+            CustomizableElement(
+                elementKey = CustomLayoutConfig.KEY_PEDALS,
+                title = "PEDALS",
+                config = customLayout.pedals,
+                isEditMode = isEditMode,
+                isSelected = selectedElementKey == CustomLayoutConfig.KEY_PEDALS,
+                onSelect = { onSelectElement(CustomLayoutConfig.KEY_PEDALS) },
+                onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_PEDALS, dx, dy) }
             ) {
-                PedalButton(
-                    label = "BRAKE",
-                    subLabel = "REVERSE",
-                    color = CoralRed,
-                    width = 130.dp,
-                    height = 140.dp,
-                    onPressChange = {
-                        if (it) onTriggerHaptic()
-                        onUpdateState { s ->
-                            s.copy(
-                                btnB = it,
-                                btnL2 = it,
-                                leftTrigger = if (it) 1f else 0f,
-                                dpadDown = it
-                            )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    PedalButton(
+                        label = "BRAKE",
+                        subLabel = "REVERSE",
+                        color = CoralRed,
+                        width = 130.dp,
+                        height = 140.dp,
+                        enabled = !isEditMode,
+                        onPressChange = {
+                            if (it) safeTriggerHaptic()
+                            safeUpdateState { s ->
+                                s.copy(
+                                    btnB = it,
+                                    btnL2 = it,
+                                    leftTrigger = if (it) 1f else 0f,
+                                    dpadDown = it
+                                )
+                            }
                         }
-                    }
-                )
+                    )
 
-                PedalButton(
-                    label = "ACCEL",
-                    subLabel = "GAS",
-                    color = EmeraldGreen,
-                    width = 130.dp,
-                    height = 140.dp,
-                    onPressChange = {
-                        if (it) onTriggerHaptic()
-                        onUpdateState { s ->
-                            s.copy(
-                                btnA = it,
-                                btnR2 = it,
-                                rightTrigger = if (it) 1f else 0f,
-                                dpadUp = it
-                            )
-                        }
-                    }
-                )
+                    PedalButton(
+                        label = "ACCEL",
+                        subLabel = "GAS",
+                        color = EmeraldGreen,
+                        width = 130.dp,
+                        height = 140.dp,
+                        enabled = !isEditMode,
+                        isAccelerator = true,
+                        onPressChange = {
+                            if (it) safeTriggerHaptic()
+                            safeUpdateState { s ->
+                                s.copy(
+                                    btnA = it,
+                                    btnR2 = it,
+                                    rightTrigger = if (it) 1f else 0f,
+                                    dpadUp = it
+                                )
+                            }
+                        },
+                        onAccelerationRumble = safeTriggerAccelerationPulse,
+                        onStopHaptic = safeStopHaptic
+                    )
+                }
             }
         }
     }
@@ -1639,7 +1917,9 @@ fun SteeringWheel(
     modifier: Modifier = Modifier,
     size: androidx.compose.ui.unit.Dp = 205.dp,
     onSteer: (Float) -> Unit,
-    onTriggerHaptic: () -> Unit = {}
+    onTriggerHaptic: () -> Unit = {},
+    onTriggerHapticTick: () -> Unit = onTriggerHaptic,
+    onTriggerHapticHeavy: () -> Unit = onTriggerHaptic
 ) {
     val coroutineScope = rememberCoroutineScope()
     val animatedAngle = remember { Animatable(0f) }
@@ -1654,7 +1934,7 @@ fun SteeringWheel(
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     isSteering = true
-                    onTriggerHaptic()
+                    onTriggerHapticTick()
 
                     val centerPx = Offset(this.size.width / 2f, this.size.height / 2f)
                     val dx = down.position.x - centerPx.x
@@ -1666,6 +1946,9 @@ fun SteeringWheel(
                         null
                     }
                     var currentWheelAngle = animatedAngle.value
+                    var lastHapticAngle = currentWheelAngle
+                    var hasHitMaxLock = currentWheelAngle >= maxAngle
+                    var hasHitMinLock = currentWheelAngle <= -maxAngle
 
                     // Stop any ongoing spring animation immediately
                     coroutineScope.launch {
@@ -1691,6 +1974,33 @@ fun SteeringWheel(
                                 else if (deltaAngle < -180f) deltaAngle += 360f
 
                                 currentWheelAngle = (currentWheelAngle + deltaAngle).coerceIn(-maxAngle, maxAngle)
+
+                                // Mechanical detent tick haptic every 8 degrees of rotation
+                                val angleDiff = kotlin.math.abs(currentWheelAngle - lastHapticAngle)
+                                if (angleDiff >= 8f) {
+                                    onTriggerHapticTick()
+                                    lastHapticAngle = currentWheelAngle
+                                }
+
+                                // Physical lock sensation when hitting maximum steering bounds
+                                if (currentWheelAngle >= maxAngle) {
+                                    if (!hasHitMaxLock) {
+                                        onTriggerHapticHeavy()
+                                        hasHitMaxLock = true
+                                    }
+                                } else if (currentWheelAngle < maxAngle - 2f) {
+                                    hasHitMaxLock = false
+                                }
+
+                                if (currentWheelAngle <= -maxAngle) {
+                                    if (!hasHitMinLock) {
+                                        onTriggerHapticHeavy()
+                                        hasHitMinLock = true
+                                    }
+                                } else if (currentWheelAngle > -maxAngle + 2f) {
+                                    hasHitMinLock = false
+                                }
+
                                 coroutineScope.launch {
                                     animatedAngle.snapTo(currentWheelAngle)
                                 }
@@ -1711,7 +2021,7 @@ fun SteeringWheel(
                         )
                     }
                     onSteer(0f)
-                    onTriggerHaptic()
+                    onTriggerHapticTick()
                 }
             },
         contentAlignment = Alignment.Center
@@ -1848,6 +2158,7 @@ fun RacingExtraButton(
     subLabel: String? = null,
     accentColor: Color,
     size: androidx.compose.ui.unit.Dp = 50.dp,
+    enabled: Boolean = true,
     onPressChange: (Boolean) -> Unit
 ) {
     var isPressed by remember { mutableStateOf(false) }
@@ -1859,29 +2170,33 @@ fun RacingExtraButton(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        if (isPressed) accentColor.copy(alpha = 0.45f) else DarkSurfaceElevated,
-                        if (isPressed) accentColor.copy(alpha = 0.2f) else DarkSurfaceVariant
+                        if (isPressed && enabled) accentColor.copy(alpha = 0.45f) else DarkSurfaceElevated,
+                        if (isPressed && enabled) accentColor.copy(alpha = 0.2f) else DarkSurfaceVariant
                     )
                 )
             )
             .border(
-                width = if (isPressed) 2.dp else 1.dp,
-                color = if (isPressed) accentColor else DarkBorder,
+                width = if (isPressed && enabled) 2.dp else 1.dp,
+                color = if (isPressed && enabled) accentColor else DarkBorder,
                 shape = CircleShape
             )
-            .pointerInput(Unit) {
-                awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false)
-                    isPressed = true
-                    onPressChange(true)
-                    try {
-                        waitForUpOrCancellation()
-                    } finally {
-                        isPressed = false
-                        onPressChange(false)
+            .then(
+                if (enabled) {
+                    Modifier.pointerInput(Unit) {
+                        awaitEachGesture {
+                            awaitFirstDown(requireUnconsumed = false)
+                            isPressed = true
+                            onPressChange(true)
+                            try {
+                                waitForUpOrCancellation()
+                            } finally {
+                                isPressed = false
+                                onPressChange(false)
+                            }
+                        }
                     }
-                }
-            },
+                } else Modifier
+            ),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -1892,7 +2207,7 @@ fun RacingExtraButton(
                 text = label,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Black,
-                color = if (isPressed) Color.White else accentColor
+                color = if (isPressed && enabled) Color.White else accentColor
             )
             if (subLabel != null) {
                 Text(
@@ -1913,9 +2228,29 @@ fun PedalButton(
     color: Color,
     width: androidx.compose.ui.unit.Dp = 96.dp,
     height: androidx.compose.ui.unit.Dp = 175.dp,
-    onPressChange: (Boolean) -> Unit
+    enabled: Boolean = true,
+    isAccelerator: Boolean = false,
+    onPressChange: (Boolean) -> Unit,
+    onAccelerationRumble: ((Float) -> Unit)? = null,
+    onStopHaptic: (() -> Unit)? = null
 ) {
     var isPressed by remember { mutableStateOf(false) }
+
+    if (isAccelerator && isPressed && enabled) {
+        LaunchedEffect(Unit) {
+            val startTime = System.currentTimeMillis()
+            while (true) {
+                val elapsed = System.currentTimeMillis() - startTime
+                // Progress smoothly increments from 0f to 1f over 2.5 seconds
+                val progress = (elapsed / 2500f).coerceIn(0f, 1f)
+                onAccelerationRumble?.invoke(progress)
+
+                // Interval between pulses starts at 120ms (gentle idle rumble) and speeds up to 36ms (high rev speed)
+                val delayMs = (120 - progress * 84).toLong().coerceIn(36L, 120L)
+                delay(delayMs)
+            }
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -1925,30 +2260,35 @@ fun PedalButton(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        if (isPressed) color.copy(alpha = 0.5f) else Color(0xFF1E2838),
-                        if (isPressed) color.copy(alpha = 0.25f) else Color(0xFF0F1522)
+                        if (isPressed && enabled) color.copy(alpha = 0.5f) else Color(0xFF1E2838),
+                        if (isPressed && enabled) color.copy(alpha = 0.25f) else Color(0xFF0F1522)
                     )
                 )
             )
             .border(
-                width = if (isPressed) 2.5.dp else 1.5.dp,
-                color = if (isPressed) color else Color(0xFF28364C),
+                width = if (isPressed && enabled) 2.5.dp else 1.5.dp,
+                color = if (isPressed && enabled) color else Color(0xFF28364C),
                 shape = RoundedCornerShape(16.dp)
             )
-            .pointerInput(Unit) {
-                awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false)
-                    isPressed = true
-                    onPressChange(true)
+            .then(
+                if (enabled) {
+                    Modifier.pointerInput(Unit) {
+                        awaitEachGesture {
+                            awaitFirstDown(requireUnconsumed = false)
+                            isPressed = true
+                            onPressChange(true)
 
-                    try {
-                        waitForUpOrCancellation()
-                    } finally {
-                        isPressed = false
-                        onPressChange(false)
+                            try {
+                                waitForUpOrCancellation()
+                            } finally {
+                                isPressed = false
+                                onPressChange(false)
+                                onStopHaptic?.invoke()
+                            }
+                        }
                     }
-                }
-            },
+                } else Modifier
+            ),
         contentAlignment = Alignment.Center
     ) {
         Column(

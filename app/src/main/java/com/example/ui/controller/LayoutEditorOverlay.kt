@@ -205,6 +205,9 @@ fun LayoutEditorBar(
             CustomLayoutConfig.KEY_SHOULDER_RIGHT -> "Shoulder R1 / R2"
             CustomLayoutConfig.KEY_CENTER_PILLS -> "Menu (Select/Start)"
             CustomLayoutConfig.KEY_TOUCHPAD -> "Touchpad"
+            CustomLayoutConfig.KEY_STEERING_WHEEL -> "Steering Wheel / Joystick"
+            CustomLayoutConfig.KEY_PEDALS -> "Pedals (Gas & Brake)"
+            CustomLayoutConfig.KEY_RACING_SYSTEMS -> "Racing Systems (NOS / Drift)"
             else -> "Tap any control to select"
         }
 

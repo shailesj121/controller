@@ -32,6 +32,20 @@ class HapticFeedbackManager(context: Context) {
         }
     }
 
+    fun tick() {
+        if (!isEnabled || vibrator == null || !vibrator.hasVibrator()) return
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                vibrator.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(8)
+            }
+        } catch (e: Exception) {
+            // Ignore if vibration fails
+        }
+    }
+
     fun heavyClick() {
         if (!isEnabled || vibrator == null || !vibrator.hasVibrator()) return
         try {
@@ -57,6 +71,33 @@ class HapticFeedbackManager(context: Context) {
                 @Suppress("DEPRECATION")
                 vibrator.vibrate(clampedDuration)
             }
+        } catch (e: Exception) {
+            // Ignore
+        }
+    }
+
+    fun accelerationPulse(progress: Float) {
+        if (!isEnabled || vibrator == null || !vibrator.hasVibrator()) return
+        try {
+            val clamped = progress.coerceIn(0f, 1f)
+            // Subtle, non-intrusive amplitude scaling from 35 (gentle idle purr) to 80 (light rev humming)
+            val amplitude = (35 + clamped * 45).toInt().coerceIn(1, 255)
+            val duration = (10 + clamped * 8).toLong() // 10ms to 18ms crisp micro-pulse
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createOneShot(duration, amplitude))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(duration)
+            }
+        } catch (e: Exception) {
+            // Ignore
+        }
+    }
+
+    fun stop() {
+        if (vibrator == null || !vibrator.hasVibrator()) return
+        try {
+            vibrator.cancel()
         } catch (e: Exception) {
             // Ignore
         }

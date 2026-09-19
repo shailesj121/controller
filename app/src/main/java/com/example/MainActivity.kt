@@ -95,6 +95,7 @@ fun MainContent(viewModel: AppViewModel) {
   val customLayout by viewModel.customLayoutConfig.collectAsStateWithLifecycle()
   val isCustomEditMode by viewModel.isCustomEditMode.collectAsStateWithLifecycle()
   val selectedElementKey by viewModel.selectedElementKey.collectAsStateWithLifecycle()
+  val isRacingJoystickMode by viewModel.isRacingJoystickMode.collectAsStateWithLifecycle()
 
   var showConnectionDialog by remember { mutableStateOf(false) }
 
@@ -111,6 +112,8 @@ fun MainContent(viewModel: AppViewModel) {
         pingMs = pingMs,
         isHapticEnabled = isHaptic,
         isGyroEnabled = isGyro,
+        isRacingJoystickMode = isRacingJoystickMode,
+        onToggleRacingJoystickMode = { viewModel.setRacingJoystickMode(it) },
         onStateUpdated = { viewModel.updateLocalState(it) },
         onUpdateState = { transform -> viewModel.updateState(transform) },
         onOpenSettings = {
@@ -120,6 +123,10 @@ fun MainContent(viewModel: AppViewModel) {
         },
         onSwitchToReceiver = { viewModel.setAppRole(AppRole.RECEIVER) },
         onTriggerHaptic = { viewModel.triggerHapticClick() },
+        onTriggerHapticTick = { viewModel.triggerHapticTick() },
+        onTriggerHapticHeavy = { viewModel.triggerHapticHeavy() },
+        onTriggerAccelerationPulse = { viewModel.triggerAccelerationPulse(it) },
+        onStopHaptic = { viewModel.stopHaptic() },
         onToggleCustomize = { viewModel.setCustomEditMode(!isCustomEditMode) },
         onSelectElement = { viewModel.setSelectedElementKey(it) },
         onDragElementDelta = { key, dx, dy -> viewModel.updateElementDragDelta(key, dx, dy) },
@@ -211,6 +218,7 @@ fun MainContent(viewModel: AppViewModel) {
       isGyroEnabled = isGyro,
       onToggleHaptic = { viewModel.toggleHaptic(it) },
       onToggleGyro = { viewModel.toggleGyro(it) },
+      onUpdateTargetHost = { ip, port -> viewModel.setTargetHost(ip, port) },
       onDismiss = { showConnectionDialog = false }
     )
   }

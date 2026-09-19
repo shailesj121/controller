@@ -50,7 +50,10 @@ data class CustomLayoutConfig(
     val shoulderLeft: ElementLayoutConfig = ElementLayoutConfig(),
     val shoulderRight: ElementLayoutConfig = ElementLayoutConfig(),
     val centerPills: ElementLayoutConfig = ElementLayoutConfig(),
-    val touchpad: ElementLayoutConfig = ElementLayoutConfig(visible = true)
+    val touchpad: ElementLayoutConfig = ElementLayoutConfig(visible = true),
+    val steeringWheel: ElementLayoutConfig = ElementLayoutConfig(),
+    val pedals: ElementLayoutConfig = ElementLayoutConfig(),
+    val racingSystems: ElementLayoutConfig = ElementLayoutConfig()
 ) {
     fun getElement(key: String): ElementLayoutConfig {
         return when (key) {
@@ -62,6 +65,9 @@ data class CustomLayoutConfig(
             KEY_SHOULDER_RIGHT -> shoulderRight
             KEY_CENTER_PILLS -> centerPills
             KEY_TOUCHPAD -> touchpad
+            KEY_STEERING_WHEEL -> steeringWheel
+            KEY_PEDALS -> pedals
+            KEY_RACING_SYSTEMS -> racingSystems
             else -> ElementLayoutConfig()
         }
     }
@@ -76,6 +82,9 @@ data class CustomLayoutConfig(
             KEY_SHOULDER_RIGHT -> copy(shoulderRight = config)
             KEY_CENTER_PILLS -> copy(centerPills = config)
             KEY_TOUCHPAD -> copy(touchpad = config)
+            KEY_STEERING_WHEEL -> copy(steeringWheel = config)
+            KEY_PEDALS -> copy(pedals = config)
+            KEY_RACING_SYSTEMS -> copy(racingSystems = config)
             else -> this
         }
     }
@@ -90,6 +99,9 @@ data class CustomLayoutConfig(
             put(KEY_SHOULDER_RIGHT, shoulderRight.toJson())
             put(KEY_CENTER_PILLS, centerPills.toJson())
             put(KEY_TOUCHPAD, touchpad.toJson())
+            put(KEY_STEERING_WHEEL, steeringWheel.toJson())
+            put(KEY_PEDALS, pedals.toJson())
+            put(KEY_RACING_SYSTEMS, racingSystems.toJson())
         }.toString()
     }
 
@@ -102,6 +114,9 @@ data class CustomLayoutConfig(
         const val KEY_SHOULDER_RIGHT = "shoulder_right"
         const val KEY_CENTER_PILLS = "center_pills"
         const val KEY_TOUCHPAD = "touchpad"
+        const val KEY_STEERING_WHEEL = "steering_wheel"
+        const val KEY_PEDALS = "pedals"
+        const val KEY_RACING_SYSTEMS = "racing_systems"
 
         fun fromJsonString(jsonStr: String?): CustomLayoutConfig {
             if (jsonStr.isNullOrBlank()) return CustomLayoutConfig()
@@ -115,7 +130,10 @@ data class CustomLayoutConfig(
                     shoulderLeft = ElementLayoutConfig.fromJson(obj.optJSONObject(KEY_SHOULDER_LEFT)),
                     shoulderRight = ElementLayoutConfig.fromJson(obj.optJSONObject(KEY_SHOULDER_RIGHT)),
                     centerPills = ElementLayoutConfig.fromJson(obj.optJSONObject(KEY_CENTER_PILLS)),
-                    touchpad = ElementLayoutConfig.fromJson(obj.optJSONObject(KEY_TOUCHPAD))
+                    touchpad = ElementLayoutConfig.fromJson(obj.optJSONObject(KEY_TOUCHPAD)),
+                    steeringWheel = ElementLayoutConfig.fromJson(obj.optJSONObject(KEY_STEERING_WHEEL)),
+                    pedals = ElementLayoutConfig.fromJson(obj.optJSONObject(KEY_PEDALS)),
+                    racingSystems = ElementLayoutConfig.fromJson(obj.optJSONObject(KEY_RACING_SYSTEMS))
                 )
             } catch (_: Exception) {
                 CustomLayoutConfig()

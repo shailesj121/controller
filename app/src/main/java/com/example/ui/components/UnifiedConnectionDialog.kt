@@ -133,11 +133,20 @@ fun UnifiedConnectionDialog(
     isGyroEnabled: Boolean,
     onToggleHaptic: (Boolean) -> Unit,
     onToggleGyro: (Boolean) -> Unit,
+    onUpdateTargetHost: (String, Int) -> Unit = { _, _ -> },
     onDismiss: () -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var inputIp by remember { mutableStateOf(currentIp) }
     var inputPort by remember { mutableStateOf(currentPort.toString()) }
+
+    val handleDismiss = {
+        val parsedPort = inputPort.toIntOrNull() ?: currentPort
+        if (inputIp.isNotBlank()) {
+            onUpdateTargetHost(inputIp.trim(), parsedPort)
+        }
+        onDismiss()
+    }
 
     val isConnected = when (currentMedium) {
         ConnectionMedium.WIFI -> isWifiConnected
@@ -146,7 +155,7 @@ fun UnifiedConnectionDialog(
     }
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = handleDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Card(
@@ -183,7 +192,7 @@ fun UnifiedConnectionDialog(
                         )
                     }
 
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(36.dp)) {
+                    IconButton(onClick = handleDismiss, modifier = Modifier.size(36.dp)) {
                         Icon(Icons.Default.Close, contentDescription = "Close", tint = TextSecondary)
                     }
                 }
