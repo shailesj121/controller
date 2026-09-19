@@ -36,6 +36,9 @@ import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -227,15 +230,22 @@ fun ControllerTopBar(
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             // Switch to Tablet Receiver mode
-            IconButton(
+            Button(
                 onClick = onSwitchToReceiver,
-                modifier = Modifier.size(36.dp)
+                colors = ButtonDefaults.buttonColors(containerColor = DarkSurfaceElevated),
+                shape = RoundedCornerShape(8.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, DarkBorder),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                modifier = Modifier.height(32.dp)
             ) {
                 Icon(
                     Icons.Default.Tv,
-                    contentDescription = "Switch to Receiver Mode",
-                    tint = TextSecondary
+                    contentDescription = "Receiver Mode",
+                    tint = ElectricCyan,
+                    modifier = Modifier.size(15.dp)
                 )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Receiver Mode", fontSize = 11.sp, color = TextPrimary, fontWeight = FontWeight.Bold)
             }
 
             // Settings dialog

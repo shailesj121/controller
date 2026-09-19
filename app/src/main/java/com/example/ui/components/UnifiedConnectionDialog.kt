@@ -34,6 +34,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SportsEsports
+import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.WifiFind
@@ -74,6 +76,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.model.AppRole
 import com.example.model.BluetoothDeviceItem
 import com.example.model.ConnectionMedium
 import com.example.model.ControllerLayout
@@ -92,6 +95,8 @@ import com.example.ui.theme.VividIndigo
 
 @Composable
 fun UnifiedConnectionDialog(
+    currentRole: AppRole = AppRole.CONTROLLER,
+    onSelectRole: (AppRole) -> Unit = {},
     currentMedium: ConnectionMedium,
     onSelectMedium: (ConnectionMedium) -> Unit,
     // Wi-Fi params
@@ -136,7 +141,7 @@ fun UnifiedConnectionDialog(
         Card(
             modifier = Modifier
                 .fillMaxWidth(0.92f)
-                .height(490.dp)
+                .height(530.dp)
                 .testTag("connection_settings_dialog"),
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = DarkSurface),
@@ -160,7 +165,7 @@ fun UnifiedConnectionDialog(
                                 .background(if (isConnected) EmeraldGreen else CoralRed)
                         )
                         Text(
-                            text = if (isConnected) "Connected (${currentMedium.title})" else "Connect Controller",
+                            text = if (isConnected) "Connected (${currentMedium.title})" else "Connect & Pairing",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
@@ -172,7 +177,79 @@ fun UnifiedConnectionDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Device Role Selector (Sender vs Receiver)
+                Text(
+                    text = "DEVICE MODE",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = TextSecondary,
+                    letterSpacing = 1.sp
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(DarkSurfaceVariant)
+                        .padding(3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (currentRole == AppRole.CONTROLLER) VividIndigo else Color.Transparent)
+                            .clickable { onSelectRole(AppRole.CONTROLLER) }
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(
+                                Icons.Default.SportsEsports,
+                                contentDescription = null,
+                                tint = if (currentRole == AppRole.CONTROLLER) Color.White else TextSecondary,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Text(
+                                "Controller (Sender)",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (currentRole == AppRole.CONTROLLER) Color.White else TextSecondary
+                            )
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (currentRole == AppRole.RECEIVER) VividIndigo else Color.Transparent)
+                            .clickable {
+                                onSelectRole(AppRole.RECEIVER)
+                                onDismiss()
+                            }
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(
+                                Icons.Default.Tv,
+                                contentDescription = null,
+                                tint = if (currentRole == AppRole.RECEIVER) Color.White else TextSecondary,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Text(
+                                "Receiver (Screen)",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (currentRole == AppRole.RECEIVER) Color.White else TextSecondary
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // Tabs
                 TabRow(

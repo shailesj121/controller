@@ -114,7 +114,11 @@ class BluetoothGamepadManager(
         serverJob = scope.launch(Dispatchers.IO) {
             try {
                 _statusMessage.value = "Starting Bluetooth listener..."
-                serverSocket = bluetoothAdapter.listenUsingRfcommWithServiceRecord(SERVICE_NAME, GAMEPAD_UUID)
+                serverSocket = try {
+                    bluetoothAdapter.listenUsingInsecureRfcommWithServiceRecord(SERVICE_NAME, GAMEPAD_UUID)
+                } catch (_: Exception) {
+                    bluetoothAdapter.listenUsingRfcommWithServiceRecord(SERVICE_NAME, GAMEPAD_UUID)
+                }
                 _isServerListening.value = true
                 _statusMessage.value = "Listening for Bluetooth Gamepad..."
 
@@ -164,10 +168,42 @@ class BluetoothGamepadManager(
                 
                 // Cancel discovery as it slows down connection
                 bluetoothAdapter.cancelDiscovery()
+                delay(250)
 
-                val socket = device.createRfcommSocketToServiceRecord(GAMEPAD_UUID)
-                socket.connect()
-                handleConnectedSocket(socket, isServer = false)
+                var socket: BluetoothSocket? = null
+                var lastException: Exception? = null
+
+                // Strategy 1: Try Insecure RFCOMM (avoids PIN prompt and pairing handshake dropouts)
+                try {
+                    val s = device.createInsecureRfcommSocketToServiceRecord(GAMEPAD_UUID)
+                    s.connect()
+                    socket = s
+                } catch (e1: Exception) {
+                    lastException = e1
+                    // Strategy 2: Try Secure RFCOMM
+                    try {
+                        val s = device.createRfcommSocketToServiceRecord(GAMEPAD_UUID)
+                        s.connect()
+                        socket = s
+                    } catch (e2: Exception) {
+                        lastException = e2
+                        // Strategy 3: Try Reflection on RFCOMM Channel 1 (classic Android workaround for "read ret: -1")
+                        try {
+                            val method = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
+                            val s = method.invoke(device, 1) as BluetoothSocket
+                            s.connect()
+                            socket = s
+                        } catch (e3: Exception) {
+                            lastException = e3
+                        }
+                    }
+                }
+
+                if (socket != null && socket.isConnected) {
+                    handleConnectedSocket(socket, isServer = false)
+                } else {
+                    throw lastException ?: Exception("Could not establish RFCOMM connection")
+                }
             } catch (e: SecurityException) {
                 _statusMessage.value = "Bluetooth permission missing"
                 _isConnected.value = false

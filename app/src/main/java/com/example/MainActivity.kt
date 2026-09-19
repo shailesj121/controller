@@ -127,6 +127,8 @@ fun MainContent(viewModel: AppViewModel) {
 
   if (showConnectionDialog) {
     UnifiedConnectionDialog(
+      currentRole = role,
+      onSelectRole = { viewModel.setAppRole(it) },
       currentMedium = medium,
       onSelectMedium = { viewModel.setConnectionMedium(it) },
       // Wi-Fi
