@@ -98,27 +98,29 @@ fun AnalogStick(
                         }
                     }
 
-                    updateStickPosition(down.position)
+                    try {
+                        updateStickPosition(down.position)
 
-                    do {
-                        val event = awaitPointerEvent()
-                        val change = event.changes.find { it.id == pointerId }
-                        if (change != null && change.pressed) {
-                            change.consume()
-                            updateStickPosition(change.position)
-                        } else {
-                            break
+                        do {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.find { it.id == pointerId }
+                            if (change != null && change.pressed) {
+                                change.consume()
+                                updateStickPosition(change.position)
+                            } else {
+                                break
+                            }
+                        } while (change != null && change.pressed)
+                    } finally {
+                        isDragging = false
+                        coroutineScope.launch {
+                            animatedOffsetX.animateTo(0f, spring(dampingRatio = 0.5f, stiffness = 600f))
                         }
-                    } while (change != null && change.pressed)
-
-                    isDragging = false
-                    coroutineScope.launch {
-                        animatedOffsetX.animateTo(0f, spring(dampingRatio = 0.5f, stiffness = 600f))
+                        coroutineScope.launch {
+                            animatedOffsetY.animateTo(0f, spring(dampingRatio = 0.5f, stiffness = 600f))
+                        }
+                        onMove(0f, 0f)
                     }
-                    coroutineScope.launch {
-                        animatedOffsetY.animateTo(0f, spring(dampingRatio = 0.5f, stiffness = 600f))
-                    }
-                    onMove(0f, 0f)
                 }
             },
         contentAlignment = Alignment.Center

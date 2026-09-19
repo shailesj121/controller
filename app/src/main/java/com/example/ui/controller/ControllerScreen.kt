@@ -826,9 +826,12 @@ fun PedalButton(
                     isPressed = true
                     onPressChange(true)
 
-                    waitForUpOrCancellation()
-                    isPressed = false
-                    onPressChange(false)
+                    try {
+                        waitForUpOrCancellation()
+                    } finally {
+                        isPressed = false
+                        onPressChange(false)
+                    }
                 }
             },
         contentAlignment = Alignment.Center

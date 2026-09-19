@@ -67,19 +67,30 @@ fun GameButton(
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     val pointerId = down.id
+                    val radius = this.size.width.toFloat() / 2f
+                    val maxRadius = radius * 1.35f
+                    val center = Offset(radius, radius)
+
                     isPressed = true
                     onPressChange(true)
 
-                    do {
-                        val event = awaitPointerEvent()
-                        val change = event.changes.find { it.id == pointerId }
-                        if (change == null || !change.pressed) {
-                            break
-                        }
-                    } while (true)
-
-                    isPressed = false
-                    onPressChange(false)
+                    try {
+                        do {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.find { it.id == pointerId }
+                            if (change == null || !change.pressed) {
+                                break
+                            }
+                            // Release if finger slides outside button boundary
+                            val dist = (change.position - center).getDistance()
+                            if (dist > maxRadius) {
+                                break
+                            }
+                        } while (true)
+                    } finally {
+                        isPressed = false
+                        onPressChange(false)
+                    }
                 }
             },
         contentAlignment = Alignment.Center

@@ -65,8 +65,10 @@ fun DPad(
         val dy = offset.y - centerY
         val dist = Offset(dx, dy).getDistance()
         val deadzone = width * 0.12f
+        val maxRadius = (width / 2f) * 1.35f
 
-        if (dist < deadzone) {
+        // Released if inside deadzone or moved outside the D-Pad control area
+        if (dist < deadzone || dist > maxRadius) {
             updateDirection(false, false, false, false)
             return
         }
@@ -100,20 +102,22 @@ fun DPad(
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     val pointerId = down.id
-                    handleOffset(down.position, inputWidth, inputHeight)
+                    try {
+                        handleOffset(down.position, inputWidth, inputHeight)
 
-                    do {
-                        val event = awaitPointerEvent()
-                        val change = event.changes.find { it.id == pointerId }
-                        if (change != null && change.pressed) {
-                            change.consume()
-                            handleOffset(change.position, inputWidth, inputHeight)
-                        } else {
-                            break
-                        }
-                    } while (change != null && change.pressed)
-
-                    updateDirection(false, false, false, false)
+                        do {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.find { it.id == pointerId }
+                            if (change != null && change.pressed) {
+                                change.consume()
+                                handleOffset(change.position, inputWidth, inputHeight)
+                            } else {
+                                break
+                            }
+                        } while (change != null && change.pressed)
+                    } finally {
+                        updateDirection(false, false, false, false)
+                    }
                 }
             },
         contentAlignment = Alignment.Center

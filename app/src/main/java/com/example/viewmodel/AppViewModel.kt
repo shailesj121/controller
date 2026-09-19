@@ -114,13 +114,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             motionManager.motionFlow.collect { motion ->
                 if (_isGyroEnabled.value) {
-                    val current = _localGamepadState.value
-                    val updated = current.copy(
-                        pitch = motion.pitch,
-                        roll = motion.roll,
-                        yaw = motion.yaw
-                    )
-                    updateLocalState(updated)
+                    updateState { current ->
+                        current.copy(
+                            pitch = motion.pitch,
+                            roll = motion.roll,
+                            yaw = motion.yaw
+                        )
+                    }
                 }
             }
         }

@@ -78,9 +78,6 @@ class BluetoothHidGamepadManager(
             0x09.toByte(), 0x39.toByte(),         //   USAGE (Hat switch)
             0x15.toByte(), 0x01.toByte(),         //   LOGICAL_MINIMUM (1) - 0 is outside range (Null state)
             0x25.toByte(), 0x08.toByte(),         //   LOGICAL_MAXIMUM (8)
-            0x35.toByte(), 0x00.toByte(),         //   PHYSICAL_MINIMUM (0)
-            0x46.toByte(), 0x3B.toByte(), 0x01.toByte(), // PHYSICAL_MAXIMUM (315 deg)
-            0x65.toByte(), 0x14.toByte(),         //   UNIT (Eng Rot: Angular Pos)
             0x75.toByte(), 0x08.toByte(),         //   REPORT_SIZE (8)
             0x95.toByte(), 0x01.toByte(),         //   REPORT_COUNT (1)
             0x81.toByte(), 0x42.toByte(),         //   INPUT (Data, Var, Abs, Null)
@@ -204,13 +201,37 @@ class BluetoothHidGamepadManager(
         }
     } else null
 
-    private val stateChannel = kotlinx.coroutines.channels.Channel<GamepadState>(kotlinx.coroutines.channels.Channel.CONFLATED)
+    // Buffered channel so rapid button press & release events are NEVER dropped
+    private val stateChannel = kotlinx.coroutines.channels.Channel<GamepadState>(
+        capacity = 64,
+        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
+    )
 
     init {
         initService()
         scope.launch(Dispatchers.IO) {
+            var lastButtons = 0
+            var lastHat = 0
             for (state in stateChannel) {
                 sendStateInternal(state)
+
+                // If any button or dpad was previously pressed and is now released,
+                // send an extra confirmation report after a short delay to guarantee
+                // the host tablet's Bluetooth stack never drops the release packet!
+                val currentButtons = computeButtonBits(state)
+                val currentHat = computeHat(state)
+                val hadInput = (lastButtons != 0 || lastHat != 0)
+                val hasInput = (currentButtons != 0 || currentHat != 0)
+                if (hadInput && !hasInput) {
+                    kotlinx.coroutines.delay(12)
+                    sendStateInternal(state)
+                }
+
+                lastButtons = currentButtons
+                lastHat = currentHat
+
+                // Small pacing delay so Bluetooth L2CAP socket buffer does not overflow
+                kotlinx.coroutines.delay(8)
             }
         }
     }
@@ -317,8 +338,41 @@ class BluetoothHidGamepadManager(
         stateChannel.trySend(state)
     }
 
+    fun computeHat(state: GamepadState): Int {
+        return when {
+            state.dpadUp && state.dpadRight -> 2
+            state.dpadDown && state.dpadRight -> 4
+            state.dpadDown && state.dpadLeft -> 6
+            state.dpadUp && state.dpadLeft -> 8
+            state.dpadUp -> 1
+            state.dpadRight -> 3
+            state.dpadDown -> 5
+            state.dpadLeft -> 7
+            else -> 0 // 0 is outside [1, 8] range, correctly signaling NULL (released)
+        }
+    }
+
+    fun computeButtonBits(state: GamepadState): Int {
+        var buttons = 0
+        if (state.btnA) buttons = buttons or (1 shl 0)
+        if (state.btnB) buttons = buttons or (1 shl 1)
+        if (state.btnX) buttons = buttons or (1 shl 3)
+        if (state.btnY) buttons = buttons or (1 shl 4)
+        if (state.btnL1) buttons = buttons or (1 shl 6)
+        if (state.btnR1) buttons = buttons or (1 shl 7)
+        if (state.btnL2 || state.leftTrigger > 0.5f) buttons = buttons or (1 shl 8)
+        if (state.btnR2 || state.rightTrigger > 0.5f) buttons = buttons or (1 shl 9)
+        if (state.btnSelect) buttons = buttons or (1 shl 10)
+        if (state.btnStart) buttons = buttons or (1 shl 11)
+        if (state.btnHome) buttons = buttons or (1 shl 12)
+        if (state.btnL3) buttons = buttons or (1 shl 13)
+        if (state.btnR3) buttons = buttons or (1 shl 14)
+        if (state.btnTurbo) buttons = buttons or (1 shl 15)
+        return buttons
+    }
+
     @SuppressLint("MissingPermission")
-    private fun sendStateInternal(state: GamepadState) {
+    private suspend fun sendStateInternal(state: GamepadState) {
         val host = connectedHost ?: return
         val dev = hidDevice ?: return
 
@@ -344,57 +398,31 @@ class BluetoothHidGamepadManager(
             report[5] = (rt * 255f).toInt().coerceIn(0, 255).toByte()
 
             // 4. D-Pad Hat Switch (1 byte: 0=Null/released, 1=N, 2=NE, 3=E, 4=SE, 5=S, 6=SW, 7=W, 8=NW)
-            val hat = when {
-                state.dpadUp && state.dpadRight -> 2
-                state.dpadDown && state.dpadRight -> 4
-                state.dpadDown && state.dpadLeft -> 6
-                state.dpadUp && state.dpadLeft -> 8
-                state.dpadUp -> 1
-                state.dpadRight -> 3
-                state.dpadDown -> 5
-                state.dpadLeft -> 7
-                else -> 0 // 0 is outside [1, 8] range, correctly signaling NULL (released)
-            }
-            report[6] = hat.toByte()
+            report[6] = computeHat(state).toByte()
 
-            // 5. 16 Action Buttons (mapped to Linux kernel BTN_GAMEPAD and Android Generic.kl):
-            // Bit 0 (0x130 / key 304): BTN_A -> BUTTON_A (A button)
-            // Bit 1 (0x131 / key 305): BTN_B -> BUTTON_B (B button)
-            // Bit 2 (0x132 / key 306): BTN_C (legacy arcade button, not used)
-            // Bit 3 (0x133 / key 307): BTN_X -> BUTTON_X (X button)
-            // Bit 4 (0x134 / key 308): BTN_Y -> BUTTON_Y (Y button)
-            // Bit 5 (0x135 / key 309): BTN_Z (legacy arcade button, not used)
-            // Bit 6 (0x136 / key 310): BTN_TL -> BUTTON_L1 (L1 / Left Bumper)
-            // Bit 7 (0x137 / key 311): BTN_TR -> BUTTON_R1 (R1 / Right Bumper)
-            // Bit 8 (0x138 / key 312): BTN_TL2 -> BUTTON_L2 (L2 / Left Trigger)
-            // Bit 9 (0x139 / key 313): BTN_TR2 -> BUTTON_R2 (R2 / Right Trigger)
-            // Bit 10 (0x13A / key 314): BTN_SELECT -> BUTTON_SELECT (Select / Back)
-            // Bit 11 (0x13B / key 315): BTN_START -> BUTTON_START (Start / Pause)
-            // Bit 12 (0x13C / key 316): BTN_MODE -> BUTTON_MODE (Home / Guide)
-            // Bit 13 (0x13D / key 317): BTN_THUMBL -> BUTTON_THUMBL (L3 thumbstick click)
-            // Bit 14 (0x13E / key 318): BTN_THUMBR -> BUTTON_THUMBR (R3 thumbstick click)
-            // Bit 15 (0x13F / key 319): Turbo / Share
-            var buttons = 0
-            if (state.btnA) buttons = buttons or (1 shl 0)
-            if (state.btnB) buttons = buttons or (1 shl 1)
-            if (state.btnX) buttons = buttons or (1 shl 3)
-            if (state.btnY) buttons = buttons or (1 shl 4)
-            if (state.btnL1) buttons = buttons or (1 shl 6)
-            if (state.btnR1) buttons = buttons or (1 shl 7)
-            if (state.btnL2 || state.leftTrigger > 0.5f) buttons = buttons or (1 shl 8)
-            if (state.btnR2 || state.rightTrigger > 0.5f) buttons = buttons or (1 shl 9)
-            if (state.btnSelect) buttons = buttons or (1 shl 10)
-            if (state.btnStart) buttons = buttons or (1 shl 11)
-            if (state.btnHome) buttons = buttons or (1 shl 12)
-            if (state.btnL3) buttons = buttons or (1 shl 13)
-            if (state.btnR3) buttons = buttons or (1 shl 14)
-            if (state.btnTurbo) buttons = buttons or (1 shl 15)
-
+            // 5. 16 Action Buttons (mapped to Linux kernel BTN_GAMEPAD and Android Generic.kl)
+            val buttons = computeButtonBits(state)
             report[7] = (buttons and 0xFF).toByte()
             report[8] = ((buttons shr 8) and 0xFF).toByte()
 
             lastReportBytes = report
-            dev.sendReport(host, REPORT_ID_GAMEPAD, report)
+
+            // Reliable transmission with retry on Bluetooth L2CAP socket congestion
+            var sent = false
+            var attempts = 0
+            while (!sent && attempts < 4) {
+                sent = try {
+                    dev.sendReport(host, REPORT_ID_GAMEPAD, report)
+                } catch (_: SecurityException) {
+                    break
+                } catch (_: Exception) {
+                    false
+                }
+                if (!sent) {
+                    attempts++
+                    kotlinx.coroutines.delay(10)
+                }
+            }
         } catch (_: Exception) {}
     }
 

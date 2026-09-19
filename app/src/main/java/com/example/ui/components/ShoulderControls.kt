@@ -80,19 +80,29 @@ fun ShoulderBumper(
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     val pointerId = down.id
+                    val w = this.size.width.toFloat()
+                    val h = this.size.height.toFloat()
+                    val slack = 24f
+
                     isPressed = true
                     onPressChange(true)
 
-                    do {
-                        val event = awaitPointerEvent()
-                        val change = event.changes.find { it.id == pointerId }
-                        if (change == null || !change.pressed) {
-                            break
-                        }
-                    } while (true)
-
-                    isPressed = false
-                    onPressChange(false)
+                    try {
+                        do {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.find { it.id == pointerId }
+                            if (change == null || !change.pressed) {
+                                break
+                            }
+                            if (change.position.x < -slack || change.position.x > w + slack ||
+                                change.position.y < -slack || change.position.y > h + slack) {
+                                break
+                            }
+                        } while (true)
+                    } finally {
+                        isPressed = false
+                        onPressChange(false)
+                    }
                 }
             },
         contentAlignment = Alignment.Center
