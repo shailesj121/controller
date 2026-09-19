@@ -2,8 +2,6 @@ package com.example.ui.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -89,32 +87,25 @@ fun DPad(
             .pointerInput(Unit) {
                 val inputWidth = size.width.toFloat()
                 val inputHeight = size.height.toFloat()
-                detectDragGestures(
-                    onDragStart = { offset ->
-                        handleOffset(offset, inputWidth, inputHeight)
-                    },
-                    onDrag = { change, _ ->
-                        change.consume()
-                        handleOffset(change.position, inputWidth, inputHeight)
-                    },
-                    onDragEnd = {
-                        updateDirection(false, false, false, false)
-                    },
-                    onDragCancel = {
-                        updateDirection(false, false, false, false)
-                    }
-                )
-            }
-            .pointerInput(Unit) {
-                val inputWidth = size.width.toFloat()
-                val inputHeight = size.height.toFloat()
-                detectTapGestures(
-                    onPress = { offset ->
-                        handleOffset(offset, inputWidth, inputHeight)
-                        tryAwaitRelease()
-                        updateDirection(false, false, false, false)
-                    }
-                )
+
+                androidx.compose.foundation.gestures.awaitEachGesture {
+                    val down = androidx.compose.foundation.gestures.awaitFirstDown(requireUnconsumed = false)
+                    val pointerId = down.id
+                    handleOffset(down.position, inputWidth, inputHeight)
+
+                    do {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.find { it.id == pointerId }
+                        if (change != null && change.pressed) {
+                            change.consume()
+                            handleOffset(change.position, inputWidth, inputHeight)
+                        } else {
+                            break
+                        }
+                    } while (change != null && change.pressed)
+
+                    updateDirection(false, false, false, false)
+                }
             },
         contentAlignment = Alignment.Center
     ) {

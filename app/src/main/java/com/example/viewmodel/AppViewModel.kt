@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
@@ -192,6 +193,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateLocalState(newState: GamepadState) {
         _localGamepadState.value = newState
+        when (_connectionMedium.value) {
+            ConnectionMedium.WIFI -> client.sendState(newState)
+            ConnectionMedium.BLUETOOTH -> bluetoothManager.sendState(newState)
+            ConnectionMedium.BLUETOOTH_HID -> hidManager.sendState(newState)
+        }
+    }
+
+    /**
+     * Atomically mutate the local gamepad state with a transform function.
+     * Prevents multi-touch race conditions (e.g. moving LS while moving RS or tapping buttons).
+     */
+    fun updateState(transform: (GamepadState) -> GamepadState) {
+        val newState = _localGamepadState.updateAndGet(transform)
         when (_connectionMedium.value) {
             ConnectionMedium.WIFI -> client.sendState(newState)
             ConnectionMedium.BLUETOOTH -> bluetoothManager.sendState(newState)

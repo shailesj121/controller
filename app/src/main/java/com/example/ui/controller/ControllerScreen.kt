@@ -94,6 +94,7 @@ fun ControllerScreen(
     isHapticEnabled: Boolean,
     isGyroEnabled: Boolean,
     onStateUpdated: (GamepadState) -> Unit,
+    onUpdateState: ((GamepadState) -> GamepadState) -> Unit = { transform -> onStateUpdated(transform(gamepadState)) },
     onOpenSettings: () -> Unit,
     onSwitchToReceiver: () -> Unit,
     onTriggerHaptic: () -> Unit
@@ -129,19 +130,19 @@ fun ControllerScreen(
                     ControllerLayout.MODERN -> ModernGamepadLayout(
                         state = gamepadState,
                         isLandscape = isLandscape,
-                        onStateUpdated = onStateUpdated,
+                        onUpdateState = onUpdateState,
                         onTriggerHaptic = onTriggerHaptic
                     )
                     ControllerLayout.RETRO_ARCADE -> RetroArcadeLayout(
                         state = gamepadState,
                         isLandscape = isLandscape,
-                        onStateUpdated = onStateUpdated,
+                        onUpdateState = onUpdateState,
                         onTriggerHaptic = onTriggerHaptic
                     )
                     ControllerLayout.RACING -> RacingControllerLayout(
                         state = gamepadState,
                         isLandscape = isLandscape,
-                        onStateUpdated = onStateUpdated,
+                        onUpdateState = onUpdateState,
                         onTriggerHaptic = onTriggerHaptic
                     )
                 }
@@ -267,7 +268,7 @@ fun ControllerTopBar(
 fun ModernGamepadLayout(
     state: GamepadState,
     isLandscape: Boolean,
-    onStateUpdated: (GamepadState) -> Unit,
+    onUpdateState: ((GamepadState) -> GamepadState) -> Unit,
     onTriggerHaptic: () -> Unit
 ) {
     if (isLandscape) {
@@ -294,11 +295,11 @@ fun ModernGamepadLayout(
                         accentColor = ElectricCyan,
                         onBumperChange = {
                             if (it) onTriggerHaptic()
-                            onStateUpdated(state.copy(btnL1 = it))
+                            onUpdateState { s -> s.copy(btnL1 = it) }
                         },
                         onTriggerChange = {
                             if (it) onTriggerHaptic()
-                            onStateUpdated(state.copy(btnL2 = it, leftTrigger = if (it) 1f else 0f))
+                            onUpdateState { s -> s.copy(btnL2 = it, leftTrigger = if (it) 1f else 0f) }
                         }
                     )
                 }
@@ -314,7 +315,7 @@ fun ModernGamepadLayout(
                         label = "LS",
                         size = 140.dp,
                         onMove = { x, y ->
-                            onStateUpdated(state.copy(leftStickX = x, leftStickY = y))
+                            onUpdateState { s -> s.copy(leftStickX = x, leftStickY = y) }
                         }
                     )
 
@@ -322,14 +323,14 @@ fun ModernGamepadLayout(
                         dpadSize = 130.dp,
                         onDirectionChange = { up, down, left, right ->
                             if (up || down || left || right) onTriggerHaptic()
-                            onStateUpdated(
-                                state.copy(
+                            onUpdateState { s ->
+                                s.copy(
                                     dpadUp = up,
                                     dpadDown = down,
                                     dpadLeft = left,
                                     dpadRight = right
                                 )
-                            )
+                            }
                         }
                     )
                 }
@@ -344,16 +345,16 @@ fun ModernGamepadLayout(
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     CenterPillButton(label = "SELECT", isPressed = state.btnSelect) {
                         if (it) onTriggerHaptic()
-                        onStateUpdated(state.copy(btnSelect = it))
+                        onUpdateState { s -> s.copy(btnSelect = it) }
                     }
                     CenterPillButton(label = "START", isPressed = state.btnStart) {
                         if (it) onTriggerHaptic()
-                        onStateUpdated(state.copy(btnStart = it))
+                        onUpdateState { s -> s.copy(btnStart = it) }
                     }
                 }
                 CenterPillButton(label = "HOME", isPressed = state.btnHome, color = VividIndigo) {
                     if (it) onTriggerHaptic()
-                    onStateUpdated(state.copy(btnHome = it))
+                    onUpdateState { s -> s.copy(btnHome = it) }
                 }
             }
 
@@ -375,11 +376,11 @@ fun ModernGamepadLayout(
                         accentColor = ElectricCyan,
                         onBumperChange = {
                             if (it) onTriggerHaptic()
-                            onStateUpdated(state.copy(btnR1 = it))
+                            onUpdateState { s -> s.copy(btnR1 = it) }
                         },
                         onTriggerChange = {
                             if (it) onTriggerHaptic()
-                            onStateUpdated(state.copy(btnR2 = it, rightTrigger = if (it) 1f else 0f))
+                            onUpdateState { s -> s.copy(btnR2 = it, rightTrigger = if (it) 1f else 0f) }
                         }
                     )
                 }
@@ -395,7 +396,7 @@ fun ModernGamepadLayout(
                         label = "RS",
                         size = 140.dp,
                         onMove = { x, y ->
-                            onStateUpdated(state.copy(rightStickX = x, rightStickY = y))
+                            onUpdateState { s -> s.copy(rightStickX = x, rightStickY = y) }
                         }
                     )
 
@@ -404,10 +405,10 @@ fun ModernGamepadLayout(
                         onButtonChange = { btn, pressed ->
                             if (pressed) onTriggerHaptic()
                             when (btn) {
-                                "A" -> onStateUpdated(state.copy(btnA = pressed))
-                                "B" -> onStateUpdated(state.copy(btnB = pressed))
-                                "X" -> onStateUpdated(state.copy(btnX = pressed))
-                                "Y" -> onStateUpdated(state.copy(btnY = pressed))
+                                "A" -> onUpdateState { s -> s.copy(btnA = pressed) }
+                                "B" -> onUpdateState { s -> s.copy(btnB = pressed) }
+                                "X" -> onUpdateState { s -> s.copy(btnX = pressed) }
+                                "Y" -> onUpdateState { s -> s.copy(btnY = pressed) }
                             }
                         }
                     )
@@ -427,17 +428,17 @@ fun ModernGamepadLayout(
             ) {
                 ShoulderGroup("L1", "L2", ElectricCyan, {
                     if (it) onTriggerHaptic()
-                    onStateUpdated(state.copy(btnL1 = it))
+                    onUpdateState { s -> s.copy(btnL1 = it) }
                 }, {
                     if (it) onTriggerHaptic()
-                    onStateUpdated(state.copy(btnL2 = it, leftTrigger = if (it) 1f else 0f))
+                    onUpdateState { s -> s.copy(btnL2 = it, leftTrigger = if (it) 1f else 0f) }
                 })
                 ShoulderGroup("R1", "R2", ElectricCyan, {
                     if (it) onTriggerHaptic()
-                    onStateUpdated(state.copy(btnR1 = it))
+                    onUpdateState { s -> s.copy(btnR1 = it) }
                 }, {
                     if (it) onTriggerHaptic()
-                    onStateUpdated(state.copy(btnR2 = it, rightTrigger = if (it) 1f else 0f))
+                    onUpdateState { s -> s.copy(btnR2 = it, rightTrigger = if (it) 1f else 0f) }
                 })
             }
 
@@ -451,7 +452,7 @@ fun ModernGamepadLayout(
                     label = "LS",
                     size = 140.dp,
                     onMove = { x, y ->
-                        onStateUpdated(state.copy(leftStickX = x, leftStickY = y))
+                        onUpdateState { s -> s.copy(leftStickX = x, leftStickY = y) }
                     }
                 )
                 DiamondActionButtons(
@@ -459,10 +460,10 @@ fun ModernGamepadLayout(
                     onButtonChange = { btn, pressed ->
                         if (pressed) onTriggerHaptic()
                         when (btn) {
-                            "A" -> onStateUpdated(state.copy(btnA = pressed))
-                            "B" -> onStateUpdated(state.copy(btnB = pressed))
-                            "X" -> onStateUpdated(state.copy(btnX = pressed))
-                            "Y" -> onStateUpdated(state.copy(btnY = pressed))
+                            "A" -> onUpdateState { s -> s.copy(btnA = pressed) }
+                            "B" -> onUpdateState { s -> s.copy(btnB = pressed) }
+                            "X" -> onUpdateState { s -> s.copy(btnX = pressed) }
+                            "Y" -> onUpdateState { s -> s.copy(btnY = pressed) }
                         }
                     }
                 )
@@ -476,12 +477,12 @@ fun ModernGamepadLayout(
             ) {
                 CenterPillButton("SELECT", state.btnSelect) {
                     if (it) onTriggerHaptic()
-                    onStateUpdated(state.copy(btnSelect = it))
+                    onUpdateState { s -> s.copy(btnSelect = it) }
                 }
                 Spacer(modifier = Modifier.width(16.dp))
                 CenterPillButton("START", state.btnStart) {
                     if (it) onTriggerHaptic()
-                    onStateUpdated(state.copy(btnStart = it))
+                    onUpdateState { s -> s.copy(btnStart = it) }
                 }
             }
 
@@ -495,21 +496,21 @@ fun ModernGamepadLayout(
                     dpadSize = 140.dp,
                     onDirectionChange = { up, down, left, right ->
                         if (up || down || left || right) onTriggerHaptic()
-                        onStateUpdated(
-                            state.copy(
+                        onUpdateState { s ->
+                            s.copy(
                                 dpadUp = up,
                                 dpadDown = down,
                                 dpadLeft = left,
                                 dpadRight = right
                             )
-                        )
+                        }
                     }
                 )
                 AnalogStick(
                     label = "RS",
                     size = 140.dp,
                     onMove = { x, y ->
-                        onStateUpdated(state.copy(rightStickX = x, rightStickY = y))
+                        onUpdateState { s -> s.copy(rightStickX = x, rightStickY = y) }
                     }
                 )
             }
@@ -587,7 +588,7 @@ fun CenterPillButton(
 fun RetroArcadeLayout(
     state: GamepadState,
     isLandscape: Boolean,
-    onStateUpdated: (GamepadState) -> Unit,
+    onUpdateState: ((GamepadState) -> GamepadState) -> Unit,
     onTriggerHaptic: () -> Unit
 ) {
     Row(
@@ -614,14 +615,14 @@ fun RetroArcadeLayout(
                 dpadSize = 170.dp,
                 onDirectionChange = { up, down, left, right ->
                     if (up || down || left || right) onTriggerHaptic()
-                    onStateUpdated(
-                        state.copy(
+                    onUpdateState { s ->
+                        s.copy(
                             dpadUp = up,
                             dpadDown = down,
                             dpadLeft = left,
                             dpadRight = right
                         )
-                    )
+                    }
                 }
             )
         }
@@ -634,15 +635,15 @@ fun RetroArcadeLayout(
         ) {
             CenterPillButton("TURBO", state.btnTurbo, color = CoralRed) {
                 if (it) onTriggerHaptic()
-                onStateUpdated(state.copy(btnTurbo = it))
+                onUpdateState { s -> s.copy(btnTurbo = it) }
             }
             CenterPillButton("SELECT", state.btnSelect) {
                 if (it) onTriggerHaptic()
-                onStateUpdated(state.copy(btnSelect = it))
+                onUpdateState { s -> s.copy(btnSelect = it) }
             }
             CenterPillButton("START", state.btnStart) {
                 if (it) onTriggerHaptic()
-                onStateUpdated(state.copy(btnStart = it))
+                onUpdateState { s -> s.copy(btnStart = it) }
             }
         }
 
@@ -668,11 +669,11 @@ fun RetroArcadeLayout(
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     GameButton(label = "X", size = 68.dp, accentColor = ButtonXColor) {
                         if (it) onTriggerHaptic()
-                        onStateUpdated(state.copy(btnX = it))
+                        onUpdateState { s -> s.copy(btnX = it) }
                     }
                     GameButton(label = "A", size = 68.dp, accentColor = ButtonAColor) {
                         if (it) onTriggerHaptic()
-                        onStateUpdated(state.copy(btnA = it))
+                        onUpdateState { s -> s.copy(btnA = it) }
                     }
                 }
                 Column(
@@ -681,11 +682,11 @@ fun RetroArcadeLayout(
                 ) {
                     GameButton(label = "Y", size = 68.dp, accentColor = ButtonYColor) {
                         if (it) onTriggerHaptic()
-                        onStateUpdated(state.copy(btnY = it))
+                        onUpdateState { s -> s.copy(btnY = it) }
                     }
                     GameButton(label = "B", size = 68.dp, accentColor = ButtonBColor) {
                         if (it) onTriggerHaptic()
-                        onStateUpdated(state.copy(btnB = it))
+                        onUpdateState { s -> s.copy(btnB = it) }
                     }
                 }
             }
@@ -697,7 +698,7 @@ fun RetroArcadeLayout(
 fun RacingControllerLayout(
     state: GamepadState,
     isLandscape: Boolean,
-    onStateUpdated: (GamepadState) -> Unit,
+    onUpdateState: ((GamepadState) -> GamepadState) -> Unit,
     onTriggerHaptic: () -> Unit
 ) {
     Row(
@@ -722,13 +723,13 @@ fun RacingControllerLayout(
                 height = 130.dp,
                 onPressChange = {
                     if (it) onTriggerHaptic()
-                    onStateUpdated(state.copy(btnL2 = it, btnB = it, leftTrigger = if (it) 1f else 0f))
+                    onUpdateState { s -> s.copy(btnL2 = it, btnB = it, leftTrigger = if (it) 1f else 0f) }
                 }
             )
 
             ShoulderBumper(label = "HANDBRAKE (L1)", width = 140.dp, height = 40.dp, accentColor = CoralRed) {
                 if (it) onTriggerHaptic()
-                onStateUpdated(state.copy(btnL1 = it, dpadDown = it))
+                onUpdateState { s -> s.copy(btnL1 = it, dpadDown = it) }
             }
         }
 
@@ -747,7 +748,7 @@ fun RacingControllerLayout(
                 label = "WHEEL",
                 size = 150.dp,
                 onMove = { x, y ->
-                    onStateUpdated(state.copy(leftStickX = x, leftStickY = y))
+                    onUpdateState { s -> s.copy(leftStickX = x, leftStickY = y) }
                 }
             )
 
@@ -758,7 +759,7 @@ fun RacingControllerLayout(
                 accentColor = VividIndigo
             ) {
                 if (it) onTriggerHaptic()
-                onStateUpdated(state.copy(btnX = it, btnTurbo = it))
+                onUpdateState { s -> s.copy(btnX = it, btnTurbo = it) }
             }
         }
 
@@ -779,13 +780,13 @@ fun RacingControllerLayout(
                 height = 130.dp,
                 onPressChange = {
                     if (it) onTriggerHaptic()
-                    onStateUpdated(state.copy(btnR2 = it, btnA = it, rightTrigger = if (it) 1f else 0f))
+                    onUpdateState { s -> s.copy(btnR2 = it, btnA = it, rightTrigger = if (it) 1f else 0f) }
                 }
             )
 
             ShoulderBumper(label = "BOOST (R1)", width = 140.dp, height = 40.dp, accentColor = EmeraldGreen) {
                 if (it) onTriggerHaptic()
-                onStateUpdated(state.copy(btnR1 = it, btnY = it))
+                onUpdateState { s -> s.copy(btnR1 = it, btnY = it) }
             }
         }
     }

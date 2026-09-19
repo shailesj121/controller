@@ -4,7 +4,8 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
@@ -66,11 +67,14 @@ fun AnalogStick(
                 val radius = (size.toPx() / 2f)
                 val maxDistance = radius * 0.75f
 
-                detectDragGestures(
-                    onDragStart = { offset ->
-                        isDragging = true
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val pointerId = down.id
+                    isDragging = true
+
+                    fun updateStickPosition(pos: Offset) {
                         val center = Offset(radius, radius)
-                        val delta = offset - center
+                        val delta = pos - center
                         val dist = delta.getDistance()
                         val angle = atan2(delta.y, delta.x)
                         val clampedDist = min(dist, maxDistance)
@@ -92,51 +96,30 @@ fun AnalogStick(
                         } else {
                             onMove(normX, normY)
                         }
-                    },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        val currentX = animatedOffsetX.value + dragAmount.x
-                        val currentY = animatedOffsetY.value + dragAmount.y
-                        val dist = sqrt(currentX * currentX + currentY * currentY)
-                        val angle = atan2(currentY, currentX)
-                        val clampedDist = min(dist, maxDistance)
-
-                        val targetX = clampedDist * cos(angle)
-                        val targetY = clampedDist * sin(angle)
-
-                        coroutineScope.launch {
-                            animatedOffsetX.snapTo(targetX)
-                            animatedOffsetY.snapTo(targetY)
-                        }
-
-                        val normX = (targetX / maxDistance).coerceIn(-1f, 1f)
-                        val normY = (targetY / maxDistance).coerceIn(-1f, 1f)
-                        val rawDist = sqrt(normX * normX + normY * normY)
-                        if (rawDist < deadzone) {
-                            onMove(0f, 0f)
-                        } else {
-                            onMove(normX, normY)
-                        }
-                    },
-                    onDragEnd = {
-                        isDragging = false
-                        coroutineScope.launch {
-                            animatedOffsetX.animateTo(0f, spring(dampingRatio = 0.5f, stiffness = 600f))
-                        }
-                        coroutineScope.launch {
-                            animatedOffsetY.animateTo(0f, spring(dampingRatio = 0.5f, stiffness = 600f))
-                        }
-                        onMove(0f, 0f)
-                    },
-                    onDragCancel = {
-                        isDragging = false
-                        coroutineScope.launch {
-                            animatedOffsetX.animateTo(0f)
-                            animatedOffsetY.animateTo(0f)
-                        }
-                        onMove(0f, 0f)
                     }
-                )
+
+                    updateStickPosition(down.position)
+
+                    do {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.find { it.id == pointerId }
+                        if (change != null && change.pressed) {
+                            change.consume()
+                            updateStickPosition(change.position)
+                        } else {
+                            break
+                        }
+                    } while (change != null && change.pressed)
+
+                    isDragging = false
+                    coroutineScope.launch {
+                        animatedOffsetX.animateTo(0f, spring(dampingRatio = 0.5f, stiffness = 600f))
+                    }
+                    coroutineScope.launch {
+                        animatedOffsetY.animateTo(0f, spring(dampingRatio = 0.5f, stiffness = 600f))
+                    }
+                    onMove(0f, 0f)
+                }
             },
         contentAlignment = Alignment.Center
     ) {

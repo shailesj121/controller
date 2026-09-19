@@ -104,6 +104,7 @@ fun MainContent(viewModel: AppViewModel) {
         isHapticEnabled = isHaptic,
         isGyroEnabled = isGyro,
         onStateUpdated = { viewModel.updateLocalState(it) },
+        onUpdateState = { transform -> viewModel.updateState(transform) },
         onOpenSettings = {
           viewModel.bluetoothManager.checkBluetoothStatus()
           viewModel.hidManager.refreshPairedDevices()
