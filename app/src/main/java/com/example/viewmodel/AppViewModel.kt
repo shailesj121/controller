@@ -124,6 +124,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+        // Auto-switch to BLUETOOTH_HID when a host tablet/PC connects over Bluetooth HID
+        viewModelScope.launch {
+            hidManager.isConnected.collect { connected ->
+                if (connected) {
+                    _connectionMedium.value = ConnectionMedium.BLUETOOTH_HID
+                }
+            }
+        }
     }
 
     fun setConnectionMedium(medium: ConnectionMedium) {
@@ -198,6 +206,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             ConnectionMedium.BLUETOOTH -> bluetoothManager.sendState(newState)
             ConnectionMedium.BLUETOOTH_HID -> hidManager.sendState(newState)
         }
+        if (_connectionMedium.value != ConnectionMedium.BLUETOOTH_HID && hidManager.isConnected.value) {
+            hidManager.sendState(newState)
+        }
     }
 
     /**
@@ -210,6 +221,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             ConnectionMedium.WIFI -> client.sendState(newState)
             ConnectionMedium.BLUETOOTH -> bluetoothManager.sendState(newState)
             ConnectionMedium.BLUETOOTH_HID -> hidManager.sendState(newState)
+        }
+        if (_connectionMedium.value != ConnectionMedium.BLUETOOTH_HID && hidManager.isConnected.value) {
+            hidManager.sendState(newState)
         }
     }
 

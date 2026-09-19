@@ -186,16 +186,33 @@ fun ControllerTopBar(
                     .clip(CircleShape)
                     .background(if (isConnected) EmeraldGreen else CoralRed)
             )
+            val statusIcon = when (connectionMedium) {
+                ConnectionMedium.BLUETOOTH_HID -> androidx.compose.material.icons.Icons.Default.SportsEsports
+                ConnectionMedium.BLUETOOTH -> androidx.compose.material.icons.Icons.Default.Bluetooth
+                ConnectionMedium.WIFI -> androidx.compose.material.icons.Icons.Default.Wifi
+            }
+            val statusText = if (isConnected) {
+                when (connectionMedium) {
+                    ConnectionMedium.BLUETOOTH_HID -> "Gamepad Linked"
+                    ConnectionMedium.BLUETOOTH -> "BT Linked"
+                    ConnectionMedium.WIFI -> "Wi-Fi (${pingMs}ms)"
+                }
+            } else {
+                when (connectionMedium) {
+                    ConnectionMedium.BLUETOOTH_HID -> "Gamepad Ready (Tap to Link)"
+                    ConnectionMedium.BLUETOOTH -> "BT Disconnected"
+                    ConnectionMedium.WIFI -> "Wi-Fi Not Linked"
+                }
+            }
+
             Icon(
-                imageVector = if (connectionMedium == ConnectionMedium.BLUETOOTH) Icons.Default.Bluetooth else Icons.Default.Wifi,
+                imageVector = statusIcon,
                 contentDescription = null,
                 tint = if (isConnected) EmeraldGreen else TextSecondary,
                 modifier = Modifier.size(13.dp)
             )
             Text(
-                text = if (isConnected) {
-                    if (connectionMedium == ConnectionMedium.BLUETOOTH) "BT Linked" else "Wi-Fi (${pingMs}ms)"
-                } else "Not Linked (Tap to Connect)",
+                text = statusText,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
                 color = if (isConnected) EmeraldGreen else CoralRed
