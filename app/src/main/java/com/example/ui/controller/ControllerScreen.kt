@@ -452,21 +452,25 @@ fun ModernGamepadLayout(
                         onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_TOUCHPAD, dx, dy) }
                     ) {
                         Touchpad(
-                            width = 175.dp,
-                            height = 95.dp,
-                            onSwipe = { dx, dy, nx, ny ->
+                            width = 185.dp,
+                            height = 100.dp,
+                            onRelativeMove = { dx, dy ->
                                 onUpdateState { s ->
                                     s.copy(
-                                        touchpadX = nx,
-                                        touchpadY = ny,
-                                        rightStickX = if (dx != 0f) (s.rightStickX + dx).coerceIn(-1f, 1f) else (if (nx == 0f) 0f else s.rightStickX),
-                                        rightStickY = if (dy != 0f) (s.rightStickY + dy).coerceIn(-1f, 1f) else (if (ny == 0f) 0f else s.rightStickY)
+                                        touchpadX = dx,
+                                        touchpadY = dy,
+                                        rightStickX = dx.coerceIn(-1f, 1f),
+                                        rightStickY = dy.coerceIn(-1f, 1f)
                                     )
                                 }
                             },
                             onClickChange = { pressed ->
                                 if (pressed) onTriggerHaptic()
                                 onUpdateState { s -> s.copy(btnTouchpad = pressed) }
+                            },
+                            onRightClickChange = { pressed ->
+                                if (pressed) onTriggerHaptic()
+                                onUpdateState { s -> s.copy(btnStart = pressed) }
                             },
                             onTriggerHaptic = onTriggerHaptic
                         )
@@ -704,21 +708,25 @@ fun ModernGamepadLayout(
                         onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_TOUCHPAD, dx, dy) }
                     ) {
                         Touchpad(
-                            width = 190.dp,
-                            height = 80.dp,
-                            onSwipe = { dx, dy, nx, ny ->
+                            width = 195.dp,
+                            height = 88.dp,
+                            onRelativeMove = { dx, dy ->
                                 onUpdateState { s ->
                                     s.copy(
-                                        touchpadX = nx,
-                                        touchpadY = ny,
-                                        rightStickX = if (dx != 0f) (s.rightStickX + dx).coerceIn(-1f, 1f) else (if (nx == 0f) 0f else s.rightStickX),
-                                        rightStickY = if (dy != 0f) (s.rightStickY + dy).coerceIn(-1f, 1f) else (if (ny == 0f) 0f else s.rightStickY)
+                                        touchpadX = dx,
+                                        touchpadY = dy,
+                                        rightStickX = dx.coerceIn(-1f, 1f),
+                                        rightStickY = dy.coerceIn(-1f, 1f)
                                     )
                                 }
                             },
                             onClickChange = { pressed ->
                                 if (pressed) onTriggerHaptic()
                                 onUpdateState { s -> s.copy(btnTouchpad = pressed) }
+                            },
+                            onRightClickChange = { pressed ->
+                                if (pressed) onTriggerHaptic()
+                                onUpdateState { s -> s.copy(btnStart = pressed) }
                             },
                             onTriggerHaptic = onTriggerHaptic
                         )
