@@ -227,8 +227,9 @@ fun Touchpad(
                         }
                     }
                 } else Modifier
-            ),
-                // Frosted Glass / Trackpad Canvas Texture
+            )
+        ) {
+            // Frosted Glass / Trackpad Canvas Texture
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val w = size.width
                     val h = size.height
