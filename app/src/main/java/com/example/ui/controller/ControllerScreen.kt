@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.SportsEsports
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.Wifi
@@ -62,12 +63,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.ConnectionMedium
 import com.example.model.ControllerLayout
+import com.example.model.CustomLayoutConfig
+import com.example.model.ElementLayoutConfig
 import com.example.model.GamepadState
 import com.example.ui.components.AnalogStick
 import com.example.ui.components.DPad
 import com.example.ui.components.GameButton
 import com.example.ui.components.ShoulderBumper
 import com.example.ui.components.ShoulderGroup
+import com.example.ui.components.Touchpad
+import com.example.ui.controller.CustomizableElement
+import com.example.ui.controller.LayoutEditorBar
 import com.example.ui.theme.ButtonAColor
 import com.example.ui.theme.ButtonBColor
 import com.example.ui.theme.ButtonXColor
@@ -88,6 +94,9 @@ import com.example.ui.theme.VividIndigo
 fun ControllerScreen(
     gamepadState: GamepadState,
     layout: ControllerLayout,
+    customLayout: CustomLayoutConfig = CustomLayoutConfig(),
+    isCustomEditMode: Boolean = false,
+    selectedElementKey: String? = null,
     isConnected: Boolean,
     connectionMedium: ConnectionMedium = ConnectionMedium.WIFI,
     pingMs: Int,
@@ -97,7 +106,14 @@ fun ControllerScreen(
     onUpdateState: ((GamepadState) -> GamepadState) -> Unit = { transform -> onStateUpdated(transform(gamepadState)) },
     onOpenSettings: () -> Unit,
     onSwitchToReceiver: () -> Unit,
-    onTriggerHaptic: () -> Unit
+    onTriggerHaptic: () -> Unit,
+    onToggleCustomize: () -> Unit = {},
+    onSelectElement: (String) -> Unit = {},
+    onDragElementDelta: (elementKey: String, dx: Float, dy: Float) -> Unit = { _, _, _ -> },
+    onScaleElement: (scale: Float) -> Unit = {},
+    onToggleTouchpad: (Boolean) -> Unit = {},
+    onResetLayout: () -> Unit = {},
+    onSaveLayout: () -> Unit = {}
 ) {
     BoxWithConstraints(
         modifier = Modifier
@@ -115,8 +131,22 @@ fun ControllerScreen(
                 pingMs = pingMs,
                 layout = layout,
                 isGyroEnabled = isGyroEnabled,
+                isCustomEditMode = isCustomEditMode,
+                onToggleCustomize = onToggleCustomize,
                 onOpenSettings = onOpenSettings,
                 onSwitchToReceiver = onSwitchToReceiver
+            )
+
+            // Layout Editor Bar (active during Customize mode)
+            LayoutEditorBar(
+                isEditMode = isCustomEditMode,
+                selectedElementKey = selectedElementKey,
+                customLayout = customLayout,
+                onScaleChange = onScaleElement,
+                onToggleTouchpad = onToggleTouchpad,
+                onResetDefaults = onResetLayout,
+                onSaveAndExit = onSaveLayout,
+                onCancel = onToggleCustomize
             )
 
             // Main Pad Area
@@ -127,9 +157,14 @@ fun ControllerScreen(
                     .padding(horizontal = if (isLandscape) 12.dp else 8.dp, vertical = 6.dp)
             ) {
                 when (layout) {
-                    ControllerLayout.MODERN -> ModernGamepadLayout(
+                    ControllerLayout.MODERN, ControllerLayout.CUSTOM -> ModernGamepadLayout(
                         state = gamepadState,
                         isLandscape = isLandscape,
+                        customLayout = customLayout,
+                        isEditMode = isCustomEditMode,
+                        selectedElementKey = selectedElementKey,
+                        onSelectElement = onSelectElement,
+                        onDragOffsetDelta = onDragElementDelta,
                         onUpdateState = onUpdateState,
                         onTriggerHaptic = onTriggerHaptic
                     )
@@ -158,6 +193,8 @@ fun ControllerTopBar(
     pingMs: Int,
     layout: ControllerLayout,
     isGyroEnabled: Boolean,
+    isCustomEditMode: Boolean = false,
+    onToggleCustomize: () -> Unit = {},
     onOpenSettings: () -> Unit,
     onSwitchToReceiver: () -> Unit
 ) {
@@ -186,33 +223,16 @@ fun ControllerTopBar(
                     .clip(CircleShape)
                     .background(if (isConnected) EmeraldGreen else CoralRed)
             )
-            val statusIcon = when (connectionMedium) {
-                ConnectionMedium.BLUETOOTH_HID -> androidx.compose.material.icons.Icons.Default.SportsEsports
-                ConnectionMedium.BLUETOOTH -> androidx.compose.material.icons.Icons.Default.Bluetooth
-                ConnectionMedium.WIFI -> androidx.compose.material.icons.Icons.Default.Wifi
-            }
-            val statusText = if (isConnected) {
-                when (connectionMedium) {
-                    ConnectionMedium.BLUETOOTH_HID -> "Gamepad Linked"
-                    ConnectionMedium.BLUETOOTH -> "BT Linked"
-                    ConnectionMedium.WIFI -> "Wi-Fi (${pingMs}ms)"
-                }
-            } else {
-                when (connectionMedium) {
-                    ConnectionMedium.BLUETOOTH_HID -> "Gamepad Ready (Tap to Link)"
-                    ConnectionMedium.BLUETOOTH -> "BT Disconnected"
-                    ConnectionMedium.WIFI -> "Wi-Fi Not Linked"
-                }
-            }
-
             Icon(
-                imageVector = statusIcon,
+                imageVector = if (connectionMedium == ConnectionMedium.BLUETOOTH) Icons.Default.Bluetooth else Icons.Default.Wifi,
                 contentDescription = null,
                 tint = if (isConnected) EmeraldGreen else TextSecondary,
                 modifier = Modifier.size(13.dp)
             )
             Text(
-                text = statusText,
+                text = if (isConnected) {
+                    if (connectionMedium == ConnectionMedium.BLUETOOTH) "BT Linked" else "Wi-Fi (${pingMs}ms)"
+                } else "Not Linked (Tap to Connect)",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
                 color = if (isConnected) EmeraldGreen else CoralRed
@@ -242,11 +262,37 @@ fun ControllerTopBar(
             }
         }
 
-        // Action icons
+        // Action icons: Customize, Receiver Mode, Settings
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
+            // Customize Controls / Edit Layout button
+            Button(
+                onClick = onToggleCustomize,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isCustomEditMode) VividIndigo else DarkSurfaceElevated
+                ),
+                shape = RoundedCornerShape(8.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, if (isCustomEditMode) ElectricCyan else DarkBorder),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                modifier = Modifier.height(32.dp)
+            ) {
+                Icon(
+                    Icons.Default.Tune,
+                    contentDescription = "Customize Controls",
+                    tint = if (isCustomEditMode) Color.White else ElectricCyan,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = if (isCustomEditMode) "Done" else "Customize",
+                    fontSize = 11.sp,
+                    color = if (isCustomEditMode) Color.White else TextPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
             // Switch to Tablet Receiver mode
             Button(
                 onClick = onSwitchToReceiver,
@@ -263,7 +309,7 @@ fun ControllerTopBar(
                     modifier = Modifier.size(15.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Receiver Mode", fontSize = 11.sp, color = TextPrimary, fontWeight = FontWeight.Bold)
+                Text("Receiver", fontSize = 11.sp, color = TextPrimary, fontWeight = FontWeight.Bold)
             }
 
             // Settings dialog
@@ -285,11 +331,16 @@ fun ControllerTopBar(
 fun ModernGamepadLayout(
     state: GamepadState,
     isLandscape: Boolean,
+    customLayout: CustomLayoutConfig = CustomLayoutConfig(),
+    isEditMode: Boolean = false,
+    selectedElementKey: String? = null,
+    onSelectElement: (String) -> Unit = {},
+    onDragOffsetDelta: (String, Float, Float) -> Unit = { _, _, _ -> },
     onUpdateState: ((GamepadState) -> GamepadState) -> Unit,
     onTriggerHaptic: () -> Unit
 ) {
     if (isLandscape) {
-        // Landscape Mode: Left stick & D-pad on left, Buttons & Right stick on right
+        // Landscape Mode: Left stick & D-pad on left, Touchpad & menu in center, Buttons & Right stick on right
         Row(
             modifier = Modifier.fillMaxSize(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -306,19 +357,29 @@ fun ModernGamepadLayout(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Start
                 ) {
-                    ShoulderGroup(
-                        bumperLabel = "L1",
-                        triggerLabel = "L2",
-                        accentColor = ElectricCyan,
-                        onBumperChange = {
-                            if (it) onTriggerHaptic()
-                            onUpdateState { s -> s.copy(btnL1 = it) }
-                        },
-                        onTriggerChange = {
-                            if (it) onTriggerHaptic()
-                            onUpdateState { s -> s.copy(btnL2 = it, leftTrigger = if (it) 1f else 0f) }
-                        }
-                    )
+                    CustomizableElement(
+                        elementKey = CustomLayoutConfig.KEY_SHOULDER_LEFT,
+                        title = "L1 / L2",
+                        config = customLayout.shoulderLeft,
+                        isEditMode = isEditMode,
+                        isSelected = selectedElementKey == CustomLayoutConfig.KEY_SHOULDER_LEFT,
+                        onSelect = { onSelectElement(CustomLayoutConfig.KEY_SHOULDER_LEFT) },
+                        onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_SHOULDER_LEFT, dx, dy) }
+                    ) {
+                        ShoulderGroup(
+                            bumperLabel = "L1",
+                            triggerLabel = "L2",
+                            accentColor = ElectricCyan,
+                            onBumperChange = {
+                                if (it) onTriggerHaptic()
+                                onUpdateState { s -> s.copy(btnL1 = it) }
+                            },
+                            onTriggerChange = {
+                                if (it) onTriggerHaptic()
+                                onUpdateState { s -> s.copy(btnL2 = it, leftTrigger = if (it) 1f else 0f) }
+                            }
+                        )
+                    }
                 }
 
                 Row(
@@ -328,50 +389,118 @@ fun ModernGamepadLayout(
                     horizontalArrangement = Arrangement.SpaceAround,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    AnalogStick(
-                        label = "LS",
-                        size = 140.dp,
-                        onMove = { x, y ->
-                            onUpdateState { s -> s.copy(leftStickX = x, leftStickY = y) }
-                        }
-                    )
-
-                    DPad(
-                        dpadSize = 130.dp,
-                        onDirectionChange = { up, down, left, right ->
-                            if (up || down || left || right) onTriggerHaptic()
-                            onUpdateState { s ->
-                                s.copy(
-                                    dpadUp = up,
-                                    dpadDown = down,
-                                    dpadLeft = left,
-                                    dpadRight = right
-                                )
+                    CustomizableElement(
+                        elementKey = CustomLayoutConfig.KEY_LEFT_STICK,
+                        title = "LEFT STICK",
+                        config = customLayout.leftStick,
+                        isEditMode = isEditMode,
+                        isSelected = selectedElementKey == CustomLayoutConfig.KEY_LEFT_STICK,
+                        onSelect = { onSelectElement(CustomLayoutConfig.KEY_LEFT_STICK) },
+                        onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_LEFT_STICK, dx, dy) }
+                    ) {
+                        AnalogStick(
+                            label = "LS",
+                            size = 140.dp,
+                            onMove = { x, y ->
+                                onUpdateState { s -> s.copy(leftStickX = x, leftStickY = y) }
                             }
-                        }
-                    )
+                        )
+                    }
+
+                    CustomizableElement(
+                        elementKey = CustomLayoutConfig.KEY_DPAD,
+                        title = "D-PAD",
+                        config = customLayout.dpad,
+                        isEditMode = isEditMode,
+                        isSelected = selectedElementKey == CustomLayoutConfig.KEY_DPAD,
+                        onSelect = { onSelectElement(CustomLayoutConfig.KEY_DPAD) },
+                        onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_DPAD, dx, dy) }
+                    ) {
+                        DPad(
+                            dpadSize = 130.dp,
+                            onDirectionChange = { up, down, left, right ->
+                                if (up || down || left || right) onTriggerHaptic()
+                                onUpdateState { s ->
+                                    s.copy(
+                                        dpadUp = up,
+                                        dpadDown = down,
+                                        dpadLeft = left,
+                                        dpadRight = right
+                                    )
+                                }
+                            }
+                        )
+                    }
                 }
             }
 
-            // Center: Select & Start buttons
+            // Center: Touchpad + Select, Start, Home
             Column(
                 modifier = Modifier.padding(horizontal = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    CenterPillButton(label = "SELECT", isPressed = state.btnSelect) {
-                        if (it) onTriggerHaptic()
-                        onUpdateState { s -> s.copy(btnSelect = it) }
-                    }
-                    CenterPillButton(label = "START", isPressed = state.btnStart) {
-                        if (it) onTriggerHaptic()
-                        onUpdateState { s -> s.copy(btnStart = it) }
+                // Interactive Touchpad
+                if (customLayout.touchpad.visible || isEditMode) {
+                    CustomizableElement(
+                        elementKey = CustomLayoutConfig.KEY_TOUCHPAD,
+                        title = "TOUCHPAD",
+                        config = customLayout.touchpad,
+                        isEditMode = isEditMode,
+                        isSelected = selectedElementKey == CustomLayoutConfig.KEY_TOUCHPAD,
+                        onSelect = { onSelectElement(CustomLayoutConfig.KEY_TOUCHPAD) },
+                        onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_TOUCHPAD, dx, dy) }
+                    ) {
+                        Touchpad(
+                            width = 175.dp,
+                            height = 95.dp,
+                            onSwipe = { dx, dy, nx, ny ->
+                                onUpdateState { s ->
+                                    s.copy(
+                                        touchpadX = nx,
+                                        touchpadY = ny,
+                                        rightStickX = if (dx != 0f) (s.rightStickX + dx).coerceIn(-1f, 1f) else (if (nx == 0f) 0f else s.rightStickX),
+                                        rightStickY = if (dy != 0f) (s.rightStickY + dy).coerceIn(-1f, 1f) else (if (ny == 0f) 0f else s.rightStickY)
+                                    )
+                                }
+                            },
+                            onClickChange = { pressed ->
+                                if (pressed) onTriggerHaptic()
+                                onUpdateState { s -> s.copy(btnTouchpad = pressed) }
+                            },
+                            onTriggerHaptic = onTriggerHaptic
+                        )
                     }
                 }
-                CenterPillButton(label = "HOME", isPressed = state.btnHome, color = VividIndigo) {
-                    if (it) onTriggerHaptic()
-                    onUpdateState { s -> s.copy(btnHome = it) }
+
+                CustomizableElement(
+                    elementKey = CustomLayoutConfig.KEY_CENTER_PILLS,
+                    title = "MENU",
+                    config = customLayout.centerPills,
+                    isEditMode = isEditMode,
+                    isSelected = selectedElementKey == CustomLayoutConfig.KEY_CENTER_PILLS,
+                    onSelect = { onSelectElement(CustomLayoutConfig.KEY_CENTER_PILLS) },
+                    onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_CENTER_PILLS, dx, dy) }
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            CenterPillButton(label = "SELECT", isPressed = state.btnSelect) {
+                                if (it) onTriggerHaptic()
+                                onUpdateState { s -> s.copy(btnSelect = it) }
+                            }
+                            CenterPillButton(label = "START", isPressed = state.btnStart) {
+                                if (it) onTriggerHaptic()
+                                onUpdateState { s -> s.copy(btnStart = it) }
+                            }
+                        }
+                        CenterPillButton(label = "HOME", isPressed = state.btnHome, color = VividIndigo) {
+                            if (it) onTriggerHaptic()
+                            onUpdateState { s -> s.copy(btnHome = it) }
+                        }
+                    }
                 }
             }
 
@@ -387,19 +516,29 @@ fun ModernGamepadLayout(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    ShoulderGroup(
-                        bumperLabel = "R1",
-                        triggerLabel = "R2",
-                        accentColor = ElectricCyan,
-                        onBumperChange = {
-                            if (it) onTriggerHaptic()
-                            onUpdateState { s -> s.copy(btnR1 = it) }
-                        },
-                        onTriggerChange = {
-                            if (it) onTriggerHaptic()
-                            onUpdateState { s -> s.copy(btnR2 = it, rightTrigger = if (it) 1f else 0f) }
-                        }
-                    )
+                    CustomizableElement(
+                        elementKey = CustomLayoutConfig.KEY_SHOULDER_RIGHT,
+                        title = "R1 / R2",
+                        config = customLayout.shoulderRight,
+                        isEditMode = isEditMode,
+                        isSelected = selectedElementKey == CustomLayoutConfig.KEY_SHOULDER_RIGHT,
+                        onSelect = { onSelectElement(CustomLayoutConfig.KEY_SHOULDER_RIGHT) },
+                        onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_SHOULDER_RIGHT, dx, dy) }
+                    ) {
+                        ShoulderGroup(
+                            bumperLabel = "R1",
+                            triggerLabel = "R2",
+                            accentColor = ElectricCyan,
+                            onBumperChange = {
+                                if (it) onTriggerHaptic()
+                                onUpdateState { s -> s.copy(btnR1 = it) }
+                            },
+                            onTriggerChange = {
+                                if (it) onTriggerHaptic()
+                                onUpdateState { s -> s.copy(btnR2 = it, rightTrigger = if (it) 1f else 0f) }
+                            }
+                        )
+                    }
                 }
 
                 Row(
@@ -409,26 +548,46 @@ fun ModernGamepadLayout(
                     horizontalArrangement = Arrangement.SpaceAround,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    AnalogStick(
-                        label = "RS",
-                        size = 140.dp,
-                        onMove = { x, y ->
-                            onUpdateState { s -> s.copy(rightStickX = x, rightStickY = y) }
-                        }
-                    )
-
-                    DiamondActionButtons(
-                        state = state,
-                        onButtonChange = { btn, pressed ->
-                            if (pressed) onTriggerHaptic()
-                            when (btn) {
-                                "A" -> onUpdateState { s -> s.copy(btnA = pressed) }
-                                "B" -> onUpdateState { s -> s.copy(btnB = pressed) }
-                                "X" -> onUpdateState { s -> s.copy(btnX = pressed) }
-                                "Y" -> onUpdateState { s -> s.copy(btnY = pressed) }
+                    CustomizableElement(
+                        elementKey = CustomLayoutConfig.KEY_RIGHT_STICK,
+                        title = "RIGHT STICK",
+                        config = customLayout.rightStick,
+                        isEditMode = isEditMode,
+                        isSelected = selectedElementKey == CustomLayoutConfig.KEY_RIGHT_STICK,
+                        onSelect = { onSelectElement(CustomLayoutConfig.KEY_RIGHT_STICK) },
+                        onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_RIGHT_STICK, dx, dy) }
+                    ) {
+                        AnalogStick(
+                            label = "RS",
+                            size = 140.dp,
+                            onMove = { x, y ->
+                                onUpdateState { s -> s.copy(rightStickX = x, rightStickY = y) }
                             }
-                        }
-                    )
+                        )
+                    }
+
+                    CustomizableElement(
+                        elementKey = CustomLayoutConfig.KEY_ACTION_BUTTONS,
+                        title = "ABXY",
+                        config = customLayout.actionButtons,
+                        isEditMode = isEditMode,
+                        isSelected = selectedElementKey == CustomLayoutConfig.KEY_ACTION_BUTTONS,
+                        onSelect = { onSelectElement(CustomLayoutConfig.KEY_ACTION_BUTTONS) },
+                        onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_ACTION_BUTTONS, dx, dy) }
+                    ) {
+                        DiamondActionButtons(
+                            state = state,
+                            onButtonChange = { btn, pressed ->
+                                if (pressed) onTriggerHaptic()
+                                when (btn) {
+                                    "A" -> onUpdateState { s -> s.copy(btnA = pressed) }
+                                    "B" -> onUpdateState { s -> s.copy(btnB = pressed) }
+                                    "X" -> onUpdateState { s -> s.copy(btnX = pressed) }
+                                    "Y" -> onUpdateState { s -> s.copy(btnY = pressed) }
+                                }
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -443,20 +602,41 @@ fun ModernGamepadLayout(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                ShoulderGroup("L1", "L2", ElectricCyan, {
-                    if (it) onTriggerHaptic()
-                    onUpdateState { s -> s.copy(btnL1 = it) }
-                }, {
-                    if (it) onTriggerHaptic()
-                    onUpdateState { s -> s.copy(btnL2 = it, leftTrigger = if (it) 1f else 0f) }
-                })
-                ShoulderGroup("R1", "R2", ElectricCyan, {
-                    if (it) onTriggerHaptic()
-                    onUpdateState { s -> s.copy(btnR1 = it) }
-                }, {
-                    if (it) onTriggerHaptic()
-                    onUpdateState { s -> s.copy(btnR2 = it, rightTrigger = if (it) 1f else 0f) }
-                })
+                CustomizableElement(
+                    elementKey = CustomLayoutConfig.KEY_SHOULDER_LEFT,
+                    title = "L1 / L2",
+                    config = customLayout.shoulderLeft,
+                    isEditMode = isEditMode,
+                    isSelected = selectedElementKey == CustomLayoutConfig.KEY_SHOULDER_LEFT,
+                    onSelect = { onSelectElement(CustomLayoutConfig.KEY_SHOULDER_LEFT) },
+                    onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_SHOULDER_LEFT, dx, dy) }
+                ) {
+                    ShoulderGroup("L1", "L2", ElectricCyan, {
+                        if (it) onTriggerHaptic()
+                        onUpdateState { s -> s.copy(btnL1 = it) }
+                    }, {
+                        if (it) onTriggerHaptic()
+                        onUpdateState { s -> s.copy(btnL2 = it, leftTrigger = if (it) 1f else 0f) }
+                    })
+                }
+
+                CustomizableElement(
+                    elementKey = CustomLayoutConfig.KEY_SHOULDER_RIGHT,
+                    title = "R1 / R2",
+                    config = customLayout.shoulderRight,
+                    isEditMode = isEditMode,
+                    isSelected = selectedElementKey == CustomLayoutConfig.KEY_SHOULDER_RIGHT,
+                    onSelect = { onSelectElement(CustomLayoutConfig.KEY_SHOULDER_RIGHT) },
+                    onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_SHOULDER_RIGHT, dx, dy) }
+                ) {
+                    ShoulderGroup("R1", "R2", ElectricCyan, {
+                        if (it) onTriggerHaptic()
+                        onUpdateState { s -> s.copy(btnR1 = it) }
+                    }, {
+                        if (it) onTriggerHaptic()
+                        onUpdateState { s -> s.copy(btnR2 = it, rightTrigger = if (it) 1f else 0f) }
+                    })
+                }
             }
 
             // Middle: Sticks and DPad
@@ -465,41 +645,109 @@ fun ModernGamepadLayout(
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                AnalogStick(
-                    label = "LS",
-                    size = 140.dp,
-                    onMove = { x, y ->
-                        onUpdateState { s -> s.copy(leftStickX = x, leftStickY = y) }
-                    }
-                )
-                DiamondActionButtons(
-                    state = state,
-                    onButtonChange = { btn, pressed ->
-                        if (pressed) onTriggerHaptic()
-                        when (btn) {
-                            "A" -> onUpdateState { s -> s.copy(btnA = pressed) }
-                            "B" -> onUpdateState { s -> s.copy(btnB = pressed) }
-                            "X" -> onUpdateState { s -> s.copy(btnX = pressed) }
-                            "Y" -> onUpdateState { s -> s.copy(btnY = pressed) }
+                CustomizableElement(
+                    elementKey = CustomLayoutConfig.KEY_LEFT_STICK,
+                    title = "LEFT STICK",
+                    config = customLayout.leftStick,
+                    isEditMode = isEditMode,
+                    isSelected = selectedElementKey == CustomLayoutConfig.KEY_LEFT_STICK,
+                    onSelect = { onSelectElement(CustomLayoutConfig.KEY_LEFT_STICK) },
+                    onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_LEFT_STICK, dx, dy) }
+                ) {
+                    AnalogStick(
+                        label = "LS",
+                        size = 140.dp,
+                        onMove = { x, y ->
+                            onUpdateState { s -> s.copy(leftStickX = x, leftStickY = y) }
                         }
-                    }
-                )
+                    )
+                }
+
+                CustomizableElement(
+                    elementKey = CustomLayoutConfig.KEY_ACTION_BUTTONS,
+                    title = "ABXY",
+                    config = customLayout.actionButtons,
+                    isEditMode = isEditMode,
+                    isSelected = selectedElementKey == CustomLayoutConfig.KEY_ACTION_BUTTONS,
+                    onSelect = { onSelectElement(CustomLayoutConfig.KEY_ACTION_BUTTONS) },
+                    onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_ACTION_BUTTONS, dx, dy) }
+                ) {
+                    DiamondActionButtons(
+                        state = state,
+                        onButtonChange = { btn, pressed ->
+                            if (pressed) onTriggerHaptic()
+                            when (btn) {
+                                "A" -> onUpdateState { s -> s.copy(btnA = pressed) }
+                                "B" -> onUpdateState { s -> s.copy(btnB = pressed) }
+                                "X" -> onUpdateState { s -> s.copy(btnX = pressed) }
+                                "Y" -> onUpdateState { s -> s.copy(btnY = pressed) }
+                            }
+                        }
+                    )
+                }
             }
 
-            // Center pills
-            Row(
+            // Center pills & Touchpad
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                CenterPillButton("SELECT", state.btnSelect) {
-                    if (it) onTriggerHaptic()
-                    onUpdateState { s -> s.copy(btnSelect = it) }
+                if (customLayout.touchpad.visible || isEditMode) {
+                    CustomizableElement(
+                        elementKey = CustomLayoutConfig.KEY_TOUCHPAD,
+                        title = "TOUCHPAD",
+                        config = customLayout.touchpad,
+                        isEditMode = isEditMode,
+                        isSelected = selectedElementKey == CustomLayoutConfig.KEY_TOUCHPAD,
+                        onSelect = { onSelectElement(CustomLayoutConfig.KEY_TOUCHPAD) },
+                        onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_TOUCHPAD, dx, dy) }
+                    ) {
+                        Touchpad(
+                            width = 190.dp,
+                            height = 80.dp,
+                            onSwipe = { dx, dy, nx, ny ->
+                                onUpdateState { s ->
+                                    s.copy(
+                                        touchpadX = nx,
+                                        touchpadY = ny,
+                                        rightStickX = if (dx != 0f) (s.rightStickX + dx).coerceIn(-1f, 1f) else (if (nx == 0f) 0f else s.rightStickX),
+                                        rightStickY = if (dy != 0f) (s.rightStickY + dy).coerceIn(-1f, 1f) else (if (ny == 0f) 0f else s.rightStickY)
+                                    )
+                                }
+                            },
+                            onClickChange = { pressed ->
+                                if (pressed) onTriggerHaptic()
+                                onUpdateState { s -> s.copy(btnTouchpad = pressed) }
+                            },
+                            onTriggerHaptic = onTriggerHaptic
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.width(16.dp))
-                CenterPillButton("START", state.btnStart) {
-                    if (it) onTriggerHaptic()
-                    onUpdateState { s -> s.copy(btnStart = it) }
+
+                CustomizableElement(
+                    elementKey = CustomLayoutConfig.KEY_CENTER_PILLS,
+                    title = "MENU",
+                    config = customLayout.centerPills,
+                    isEditMode = isEditMode,
+                    isSelected = selectedElementKey == CustomLayoutConfig.KEY_CENTER_PILLS,
+                    onSelect = { onSelectElement(CustomLayoutConfig.KEY_CENTER_PILLS) },
+                    onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_CENTER_PILLS, dx, dy) }
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CenterPillButton("SELECT", state.btnSelect) {
+                            if (it) onTriggerHaptic()
+                            onUpdateState { s -> s.copy(btnSelect = it) }
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        CenterPillButton("START", state.btnStart) {
+                            if (it) onTriggerHaptic()
+                            onUpdateState { s -> s.copy(btnStart = it) }
+                        }
+                    }
                 }
             }
 
@@ -509,27 +757,48 @@ fun ModernGamepadLayout(
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                DPad(
-                    dpadSize = 140.dp,
-                    onDirectionChange = { up, down, left, right ->
-                        if (up || down || left || right) onTriggerHaptic()
-                        onUpdateState { s ->
-                            s.copy(
-                                dpadUp = up,
-                                dpadDown = down,
-                                dpadLeft = left,
-                                dpadRight = right
-                            )
+                CustomizableElement(
+                    elementKey = CustomLayoutConfig.KEY_DPAD,
+                    title = "D-PAD",
+                    config = customLayout.dpad,
+                    isEditMode = isEditMode,
+                    isSelected = selectedElementKey == CustomLayoutConfig.KEY_DPAD,
+                    onSelect = { onSelectElement(CustomLayoutConfig.KEY_DPAD) },
+                    onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_DPAD, dx, dy) }
+                ) {
+                    DPad(
+                        dpadSize = 140.dp,
+                        onDirectionChange = { up, down, left, right ->
+                            if (up || down || left || right) onTriggerHaptic()
+                            onUpdateState { s ->
+                                s.copy(
+                                    dpadUp = up,
+                                    dpadDown = down,
+                                    dpadLeft = left,
+                                    dpadRight = right
+                                )
+                            }
                         }
-                    }
-                )
-                AnalogStick(
-                    label = "RS",
-                    size = 140.dp,
-                    onMove = { x, y ->
-                        onUpdateState { s -> s.copy(rightStickX = x, rightStickY = y) }
-                    }
-                )
+                    )
+                }
+
+                CustomizableElement(
+                    elementKey = CustomLayoutConfig.KEY_RIGHT_STICK,
+                    title = "RIGHT STICK",
+                    config = customLayout.rightStick,
+                    isEditMode = isEditMode,
+                    isSelected = selectedElementKey == CustomLayoutConfig.KEY_RIGHT_STICK,
+                    onSelect = { onSelectElement(CustomLayoutConfig.KEY_RIGHT_STICK) },
+                    onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_RIGHT_STICK, dx, dy) }
+                ) {
+                    AnalogStick(
+                        label = "RS",
+                        size = 140.dp,
+                        onMove = { x, y ->
+                            onUpdateState { s -> s.copy(rightStickX = x, rightStickY = y) }
+                        }
+                    )
+                }
             }
         }
     }

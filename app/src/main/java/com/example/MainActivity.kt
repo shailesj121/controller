@@ -91,6 +91,11 @@ fun MainContent(viewModel: AppViewModel) {
   val serverGamepadState by viewModel.server.latestState.collectAsStateWithLifecycle()
   val packetRateHz by viewModel.server.packetRateHz.collectAsStateWithLifecycle()
 
+  // Layout customization states
+  val customLayout by viewModel.customLayoutConfig.collectAsStateWithLifecycle()
+  val isCustomEditMode by viewModel.isCustomEditMode.collectAsStateWithLifecycle()
+  val selectedElementKey by viewModel.selectedElementKey.collectAsStateWithLifecycle()
+
   var showConnectionDialog by remember { mutableStateOf(false) }
 
   when (role) {
@@ -98,6 +103,9 @@ fun MainContent(viewModel: AppViewModel) {
       ControllerScreen(
         gamepadState = localState,
         layout = layout,
+        customLayout = customLayout,
+        isCustomEditMode = isCustomEditMode,
+        selectedElementKey = selectedElementKey,
         isConnected = isConnected,
         connectionMedium = medium,
         pingMs = pingMs,
@@ -111,7 +119,16 @@ fun MainContent(viewModel: AppViewModel) {
           showConnectionDialog = true
         },
         onSwitchToReceiver = { viewModel.setAppRole(AppRole.RECEIVER) },
-        onTriggerHaptic = { viewModel.triggerHapticClick() }
+        onTriggerHaptic = { viewModel.triggerHapticClick() },
+        onToggleCustomize = { viewModel.setCustomEditMode(!isCustomEditMode) },
+        onSelectElement = { viewModel.setSelectedElementKey(it) },
+        onDragElementDelta = { key, dx, dy -> viewModel.updateElementDragDelta(key, dx, dy) },
+        onScaleElement = { scale ->
+          selectedElementKey?.let { viewModel.updateElementScale(it, scale) }
+        },
+        onToggleTouchpad = { viewModel.toggleTouchpadVisibility(it) },
+        onResetLayout = { viewModel.resetCustomLayout() },
+        onSaveLayout = { viewModel.saveCustomLayout() }
       )
     }
     AppRole.RECEIVER -> {

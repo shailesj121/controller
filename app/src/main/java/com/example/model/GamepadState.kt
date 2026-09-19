@@ -24,11 +24,15 @@ data class GamepadState(
     val btnStart: Boolean = false,
     val btnHome: Boolean = false,
     val btnTurbo: Boolean = false,
+    val btnTouchpad: Boolean = false,
     // Analog Sticks (-1.0f to 1.0f)
     val leftStickX: Float = 0f,
     val leftStickY: Float = 0f,
     val rightStickX: Float = 0f,
     val rightStickY: Float = 0f,
+    // Touchpad (-1.0f to 1.0f or relative delta)
+    val touchpadX: Float = 0f,
+    val touchpadY: Float = 0f,
     // Analog Triggers (0.0f to 1.0f)
     val leftTrigger: Float = 0f,
     val rightTrigger: Float = 0f,
@@ -57,17 +61,18 @@ data class GamepadState(
         if (btnStart) mask = mask or (1 shl 15)
         if (btnHome) mask = mask or (1 shl 16)
         if (btnTurbo) mask = mask or (1 shl 17)
+        if (btnTouchpad) mask = mask or (1 shl 18)
         return mask
     }
 
     /**
      * Compact high-speed UDP packet representation
-     * Format: GP|<seq>|<bitmask>|<lx>|<ly>|<rx>|<ry>|<lt>|<rt>|<pitch>|<roll>
+     * Format: GP|<seq>|<bitmask>|<lx>|<ly>|<rx>|<ry>|<lt>|<rt>|<pitch>|<roll>|<tx>|<ty>
      */
     fun toPacketString(): String {
         return String.format(
             Locale.US,
-            "GP|%d|%d|%.2f|%.2f|%.2f|%.2f|%.2f|%.2f|%.1f|%.1f",
+            "GP|%d|%d|%.2f|%.2f|%.2f|%.2f|%.2f|%.2f|%.1f|%.1f|%.2f|%.2f",
             seq,
             toBitmask(),
             leftStickX,
@@ -77,7 +82,9 @@ data class GamepadState(
             leftTrigger,
             rightTrigger,
             pitch,
-            roll
+            roll,
+            touchpadX,
+            touchpadY
         )
     }
 
@@ -107,13 +114,16 @@ data class GamepadState(
                 "select": $btnSelect,
                 "start": $btnStart,
                 "home": $btnHome,
-                "turbo": $btnTurbo
+                "turbo": $btnTurbo,
+                "touchpad": $btnTouchpad
               },
               "axes": {
                 "leftStickX": $leftStickX,
                 "leftStickY": $leftStickY,
                 "rightStickX": $rightStickX,
                 "rightStickY": $rightStickY,
+                "touchpadX": $touchpadX,
+                "touchpadY": $touchpadY,
                 "leftTrigger": $leftTrigger,
                 "rightTrigger": $rightTrigger
               },
@@ -142,6 +152,8 @@ data class GamepadState(
                 val rt = parts[8].toFloat()
                 val pitch = parts[9].toFloat()
                 val roll = parts[10].toFloat()
+                val tx = if (parts.size > 11) parts[11].toFloat() else 0f
+                val ty = if (parts.size > 12) parts[12].toFloat() else 0f
 
                 GamepadState(
                     seq = seq,
@@ -164,10 +176,13 @@ data class GamepadState(
                     btnStart = (mask and (1 shl 15)) != 0,
                     btnHome = (mask and (1 shl 16)) != 0,
                     btnTurbo = (mask and (1 shl 17)) != 0,
+                    btnTouchpad = (mask and (1 shl 18)) != 0,
                     leftStickX = lx,
                     leftStickY = ly,
                     rightStickX = rx,
                     rightStickY = ry,
+                    touchpadX = tx,
+                    touchpadY = ty,
                     leftTrigger = lt,
                     rightTrigger = rt,
                     pitch = pitch,
@@ -183,7 +198,8 @@ data class GamepadState(
 enum class ControllerLayout(val title: String, val description: String) {
     MODERN("Modern Dual-Stick", "Full analog dual sticks, triggers, bumpers & action buttons"),
     RETRO_ARCADE("Retro Arcade", "Direct 8-way D-Pad, oversized arcade action buttons & turbo"),
-    RACING("Racing & Pedals", "Tilt/wheel steering with gas pedal, brake pedal & handbrake")
+    RACING("Racing & Pedals", "Tilt/wheel steering with gas pedal, brake pedal & handbrake"),
+    CUSTOM("Custom Layout", "Fully customizable button sizes, positions & interactive touchpad")
 }
 
 enum class AppRole(val title: String) {

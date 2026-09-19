@@ -10,6 +10,9 @@ import com.example.model.ConnectionMedium
 import com.example.model.ControllerLayout
 import com.example.model.DiscoveredHost
 import com.example.model.GamepadState
+import com.example.model.CustomLayoutConfig
+import com.example.model.CustomLayoutPreferences
+import com.example.model.ElementLayoutConfig
 import com.example.network.BluetoothGamepadManager
 import com.example.network.BluetoothHidGamepadManager
 import com.example.network.GamepadClient
@@ -22,6 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
 
@@ -29,6 +33,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     val hapticManager = HapticFeedbackManager(application)
     val motionManager = MotionSensorManager(application)
+    private val customLayoutPrefs = CustomLayoutPreferences(application)
 
     private val _appRole = MutableStateFlow(AppRole.CONTROLLER)
     val appRole: StateFlow<AppRole> = _appRole.asStateFlow()
@@ -47,6 +52,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _localGamepadState = MutableStateFlow(GamepadState())
     val localGamepadState: StateFlow<GamepadState> = _localGamepadState.asStateFlow()
+
+    // Layout customization states
+    private val _customLayoutConfig = MutableStateFlow(customLayoutPrefs.loadLayoutConfig())
+    val customLayoutConfig: StateFlow<CustomLayoutConfig> = _customLayoutConfig.asStateFlow()
+
+    private val _isCustomEditMode = MutableStateFlow(false)
+    val isCustomEditMode: StateFlow<Boolean> = _isCustomEditMode.asStateFlow()
+
+    private val _selectedElementKey = MutableStateFlow<String?>(CustomLayoutConfig.KEY_ACTION_BUTTONS)
+    val selectedElementKey: StateFlow<String?> = _selectedElementKey.asStateFlow()
 
     private val _targetIp = MutableStateFlow("192.168.1.100")
     val targetIp: StateFlow<String> = _targetIp.asStateFlow()
@@ -124,14 +139,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
-        // Auto-switch to BLUETOOTH_HID when a host tablet/PC connects over Bluetooth HID
-        viewModelScope.launch {
-            hidManager.isConnected.collect { connected ->
-                if (connected) {
-                    _connectionMedium.value = ConnectionMedium.BLUETOOTH_HID
-                }
-            }
-        }
     }
 
     fun setConnectionMedium(medium: ConnectionMedium) {
@@ -206,9 +213,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             ConnectionMedium.BLUETOOTH -> bluetoothManager.sendState(newState)
             ConnectionMedium.BLUETOOTH_HID -> hidManager.sendState(newState)
         }
-        if (_connectionMedium.value != ConnectionMedium.BLUETOOTH_HID && hidManager.isConnected.value) {
-            hidManager.sendState(newState)
-        }
     }
 
     /**
@@ -221,9 +225,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             ConnectionMedium.WIFI -> client.sendState(newState)
             ConnectionMedium.BLUETOOTH -> bluetoothManager.sendState(newState)
             ConnectionMedium.BLUETOOTH_HID -> hidManager.sendState(newState)
-        }
-        if (_connectionMedium.value != ConnectionMedium.BLUETOOTH_HID && hidManager.isConnected.value) {
-            hidManager.sendState(newState)
         }
     }
 
@@ -240,6 +241,55 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (_isHapticEnabled.value) {
             hapticManager.rumble(durationMs, intensity)
         }
+    }
+
+    // --- Layout Customization Methods ---
+
+    fun setCustomEditMode(enabled: Boolean) {
+        _isCustomEditMode.value = enabled
+        if (enabled && _selectedElementKey.value == null) {
+            _selectedElementKey.value = CustomLayoutConfig.KEY_ACTION_BUTTONS
+        }
+    }
+
+    fun setSelectedElementKey(key: String?) {
+        _selectedElementKey.value = key
+    }
+
+    fun updateElementDragDelta(elementKey: String, dx: Float, dy: Float) {
+        _customLayoutConfig.update { current ->
+            val el = current.getElement(elementKey)
+            val updated = el.copy(
+                offsetX = (el.offsetX + dx).coerceIn(-400f, 400f),
+                offsetY = (el.offsetY + dy).coerceIn(-300f, 300f)
+            )
+            current.updateElement(elementKey, updated)
+        }
+    }
+
+    fun updateElementScale(elementKey: String, scale: Float) {
+        _customLayoutConfig.update { current ->
+            val el = current.getElement(elementKey)
+            val updated = el.copy(scale = scale.coerceIn(0.5f, 1.75f))
+            current.updateElement(elementKey, updated)
+        }
+    }
+
+    fun toggleTouchpadVisibility(visible: Boolean) {
+        _customLayoutConfig.update { current ->
+            val updated = current.touchpad.copy(visible = visible)
+            current.copy(touchpad = updated)
+        }
+    }
+
+    fun saveCustomLayout() {
+        customLayoutPrefs.saveLayoutConfig(_customLayoutConfig.value)
+        _isCustomEditMode.value = false
+    }
+
+    fun resetCustomLayout() {
+        val defaultConfig = customLayoutPrefs.resetLayoutConfig()
+        _customLayoutConfig.value = defaultConfig
     }
 
     override fun onCleared() {

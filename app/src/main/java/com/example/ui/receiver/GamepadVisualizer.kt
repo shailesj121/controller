@@ -140,6 +140,7 @@ fun GamepadVisualizer(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        PillStatusBadge("TOUCHPAD", state.btnTouchpad)
                         PillStatusBadge("SELECT", state.btnSelect)
                         PillStatusBadge("START", state.btnStart)
                         PillStatusBadge("TURBO", state.btnTurbo)

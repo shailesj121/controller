@@ -363,7 +363,7 @@ class BluetoothHidGamepadManager(
         if (state.btnR1) buttons = buttons or (1 shl 7)
         if (state.btnL2 || state.leftTrigger > 0.5f) buttons = buttons or (1 shl 8)
         if (state.btnR2 || state.rightTrigger > 0.5f) buttons = buttons or (1 shl 9)
-        if (state.btnSelect) buttons = buttons or (1 shl 10)
+        if (state.btnSelect || state.btnTouchpad) buttons = buttons or (1 shl 10)
         if (state.btnStart) buttons = buttons or (1 shl 11)
         if (state.btnHome) buttons = buttons or (1 shl 12)
         if (state.btnL3) buttons = buttons or (1 shl 13)
@@ -386,9 +386,11 @@ class BluetoothHidGamepadManager(
             report[0] = lx.toByte()
             report[1] = ly.toByte()
 
-            // 2. Right Stick: Z, Rz (0..255, center 128) with deadzone
-            val rx = if (kotlin.math.abs(state.rightStickX) < 0.05f) 128 else ((state.rightStickX + 1f) * 127.5f).toInt().coerceIn(0, 255)
-            val ry = if (kotlin.math.abs(state.rightStickY) < 0.05f) 128 else ((state.rightStickY + 1f) * 127.5f).toInt().coerceIn(0, 255)
+            // 2. Right Stick / Touchpad Aim: Z, Rz (0..255, center 128) with deadzone
+            val effectiveRx = if (state.touchpadX != 0f && state.rightStickX == 0f) state.touchpadX else state.rightStickX
+            val effectiveRy = if (state.touchpadY != 0f && state.rightStickY == 0f) state.touchpadY else state.rightStickY
+            val rx = if (kotlin.math.abs(effectiveRx) < 0.05f) 128 else ((effectiveRx + 1f) * 127.5f).toInt().coerceIn(0, 255)
+            val ry = if (kotlin.math.abs(effectiveRy) < 0.05f) 128 else ((effectiveRy + 1f) * 127.5f).toInt().coerceIn(0, 255)
             report[2] = rx.toByte()
             report[3] = ry.toByte()
 
