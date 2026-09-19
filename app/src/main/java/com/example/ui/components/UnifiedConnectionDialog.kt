@@ -540,24 +540,6 @@ private fun DualConnectionTab(
         }
     }
 }
-                onDisconnectWifi = onDisconnectWifi,
-                onRefreshDiscovery = onRefreshDiscovery
-            )
-        } else {
-            // Bluetooth Connection UI
-            BluetoothConnectionSection(
-                isBtConnected = isBtConnected,
-                connectedBtDeviceName = connectedBtDeviceName,
-                pairedBtDevices = pairedBtDevices,
-                isBluetoothEnabled = isBluetoothEnabled,
-                btStatusMessage = btStatusMessage,
-                onConnectBluetooth = onConnectBluetooth,
-                onDisconnectBluetooth = onDisconnectBluetooth,
-                onRefreshBluetooth = onRefreshBluetooth
-            )
-        }
-    }
-}
 
 @Composable
 private fun WifiConnectionSection(
