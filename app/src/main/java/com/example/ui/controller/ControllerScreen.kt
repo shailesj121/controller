@@ -1643,8 +1643,6 @@ fun SteeringWheel(
 ) {
     val coroutineScope = rememberCoroutineScope()
     val animatedAngle = remember { Animatable(0f) }
-    var touchStartAngle by remember { mutableStateOf(0f) }
-    var baseWheelAngle by remember { mutableStateOf(0f) }
     var isSteering by remember { mutableStateOf(false) }
 
     val maxAngle = 105f // Rotation lock in degrees
@@ -1661,8 +1659,18 @@ fun SteeringWheel(
                     val centerPx = Offset(this.size.width / 2f, this.size.height / 2f)
                     val dx = down.position.x - centerPx.x
                     val dy = down.position.y - centerPx.y
-                    touchStartAngle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
-                    baseWheelAngle = animatedAngle.value
+                    val distSq = dx * dx + dy * dy
+                    var lastTouchAngle = if (distSq > 100f) {
+                        Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
+                    } else {
+                        null
+                    }
+                    var currentWheelAngle = animatedAngle.value
+
+                    // Stop any ongoing spring animation immediately
+                    coroutineScope.launch {
+                        animatedAngle.snapTo(currentWheelAngle)
+                    }
 
                     while (true) {
                         val event = awaitPointerEvent()
@@ -1671,18 +1679,26 @@ fun SteeringWheel(
 
                         val currentDx = change.position.x - centerPx.x
                         val currentDy = change.position.y - centerPx.y
-                        val currentTouchAngle = Math.toDegrees(atan2(currentDy.toDouble(), currentDx.toDouble())).toFloat()
+                        val moveDistSq = currentDx * currentDx + currentDy * currentDy
 
-                        var deltaAngle = currentTouchAngle - touchStartAngle
-                        if (deltaAngle > 180f) deltaAngle -= 360f
-                        if (deltaAngle < -180f) deltaAngle += 360f
+                        // Avoid erratic angles when touching near the center deadzone
+                        if (moveDistSq > 100f) {
+                            val currentTouchAngle = Math.toDegrees(atan2(currentDy.toDouble(), currentDx.toDouble())).toFloat()
+                            val prevAngle = lastTouchAngle
+                            if (prevAngle != null) {
+                                var deltaAngle = currentTouchAngle - prevAngle
+                                if (deltaAngle > 180f) deltaAngle -= 360f
+                                else if (deltaAngle < -180f) deltaAngle += 360f
 
-                        val targetAngle = (baseWheelAngle + deltaAngle).coerceIn(-maxAngle, maxAngle)
-                        coroutineScope.launch {
-                            animatedAngle.snapTo(targetAngle)
+                                currentWheelAngle = (currentWheelAngle + deltaAngle).coerceIn(-maxAngle, maxAngle)
+                                coroutineScope.launch {
+                                    animatedAngle.snapTo(currentWheelAngle)
+                                }
+                                val steerRatio = (currentWheelAngle / maxAngle).coerceIn(-1f, 1f)
+                                onSteer(steerRatio)
+                            }
+                            lastTouchAngle = currentTouchAngle
                         }
-                        val steerRatio = (targetAngle / maxAngle).coerceIn(-1f, 1f)
-                        onSteer(steerRatio)
                         change.consume()
                     }
 
