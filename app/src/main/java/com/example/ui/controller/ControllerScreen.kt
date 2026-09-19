@@ -459,8 +459,10 @@ fun ModernGamepadLayout(
                                     s.copy(
                                         touchpadX = dx,
                                         touchpadY = dy,
-                                        rightStickX = dx.coerceIn(-1f, 1f),
-                                        rightStickY = dy.coerceIn(-1f, 1f)
+                                        leftStickX = if (dx == 0f && dy == 0f) 0f else dx.coerceIn(-1f, 1f),
+                                        leftStickY = if (dx == 0f && dy == 0f) 0f else dy.coerceIn(-1f, 1f),
+                                        rightStickX = if (dx == 0f && dy == 0f) 0f else dx.coerceIn(-1f, 1f),
+                                        rightStickY = if (dx == 0f && dy == 0f) 0f else dy.coerceIn(-1f, 1f)
                                     )
                                 }
                             },
@@ -715,8 +717,10 @@ fun ModernGamepadLayout(
                                     s.copy(
                                         touchpadX = dx,
                                         touchpadY = dy,
-                                        rightStickX = dx.coerceIn(-1f, 1f),
-                                        rightStickY = dy.coerceIn(-1f, 1f)
+                                        leftStickX = if (dx == 0f && dy == 0f) 0f else dx.coerceIn(-1f, 1f),
+                                        leftStickY = if (dx == 0f && dy == 0f) 0f else dy.coerceIn(-1f, 1f),
+                                        rightStickX = if (dx == 0f && dy == 0f) 0f else dx.coerceIn(-1f, 1f),
+                                        rightStickY = if (dx == 0f && dy == 0f) 0f else dy.coerceIn(-1f, 1f)
                                     )
                                 }
                             },

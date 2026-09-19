@@ -91,6 +91,9 @@ fun Touchpad(
     var isLeftClicked by remember { mutableStateOf(false) }
     var isRightClicked by remember { mutableStateOf(false) }
 
+    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+    var autoZeroJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+
     // Virtual cursor position for genuine trackpad pointer visualization
     var cursorX by remember { mutableFloatStateOf(0.5f) }
     var cursorY by remember { mutableFloatStateOf(0.5f) }
@@ -174,14 +177,33 @@ fun Touchpad(
                                         cursorY = (cursorY + (dy / h) * 1.5f).coerceIn(0.05f, 0.95f)
                                     }
 
-                                    // Send relative swipe delta velocity (friction-based trackpad aim)
-                                    // When finger stops moving, dx/dy is 0, so stick tilt drops to 0!
-                                    val velocityMultiplier = 0.12f
-                                    onRelativeMove(dx * velocityMultiplier, dy * velocityMultiplier)
+                                    // True trackpad relative impulse:
+                                    // 1. Calculate displacement distance
+                                    val moveDistance = kotlin.math.hypot(dx, dy)
+                                    // 2. Jitter deadzone filters micro-tremors of resting finger (prevents sticky joystick drift)
+                                    val jitterThreshold = 1.2f
+
+                                    if (moveDistance >= jitterThreshold) {
+                                        autoZeroJob?.cancel()
+                                        val scaledDx = (dx * sensitivity).coerceIn(-1f, 1f)
+                                        val scaledDy = (dy * sensitivity).coerceIn(-1f, 1f)
+                                        onRelativeMove(scaledDx, scaledDy)
+
+                                        // Fallback auto-zero timer in case Android stops sending events while finger is held completely motionless
+                                        autoZeroJob = coroutineScope.launch {
+                                            kotlinx.coroutines.delay(25)
+                                            onRelativeMove(0f, 0f)
+                                        }
+                                    } else {
+                                        // Finger stopped moving or resting motionless -> IMMEDIATELY kill movement on screen!
+                                        autoZeroJob?.cancel()
+                                        onRelativeMove(0f, 0f)
+                                    }
                                 } while (true)
                             } finally {
                                 isTouchingSurface = false
                                 touchPos = null
+                                autoZeroJob?.cancel()
                                 // Return relative displacement to 0 immediately when finger stops/lifts
                                 onRelativeMove(0f, 0f)
 

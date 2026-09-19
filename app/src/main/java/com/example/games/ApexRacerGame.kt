@@ -104,8 +104,8 @@ fun ApexRacerGame(
 
                 lapSeconds += dt
 
-                // 1. Steering from Left Stick OR Gyro Tilt Roll
-                var steerInput = gamepadState.leftStickX
+                // 1. Steering from Touchpad, Left Stick OR Gyro Tilt Roll
+                var steerInput = if (gamepadState.touchpadX != 0f) gamepadState.touchpadX.coerceIn(-1f, 1f) else gamepadState.leftStickX
                 if (gamepadState.dpadLeft) steerInput = -1f
                 if (gamepadState.dpadRight) steerInput = 1f
 

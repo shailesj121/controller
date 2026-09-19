@@ -123,17 +123,23 @@ fun GalaxyDefenderGame(
                 val dt = ((now - lastFrameTime).coerceIn(8, 33) / 1000f)
                 lastFrameTime = now
 
-                // 1. Move Player from Controller Inputs (Stick or DPad)
-                var moveX = gamepadState.leftStickX
-                var moveY = gamepadState.leftStickY
-                if (gamepadState.dpadLeft) moveX = -1f
-                if (gamepadState.dpadRight) moveX = 1f
-                if (gamepadState.dpadUp) moveY = -1f
-                if (gamepadState.dpadDown) moveY = 1f
+                // 1. Move Player from Controller Inputs (Touchpad Impulse or Stick/DPad Velocity)
+                if (gamepadState.touchpadX != 0f || gamepadState.touchpadY != 0f) {
+                    // Trackpad relative impulse: moves only while finger is actively swiping, halts immediately when finger pauses
+                    playerX = (playerX + gamepadState.touchpadX * 0.04f).coerceIn(0.06f, 0.94f)
+                    playerY = (playerY + gamepadState.touchpadY * 0.04f).coerceIn(0.10f, 0.94f)
+                } else {
+                    var moveX = gamepadState.leftStickX
+                    var moveY = gamepadState.leftStickY
+                    if (gamepadState.dpadLeft) moveX = -1f
+                    if (gamepadState.dpadRight) moveX = 1f
+                    if (gamepadState.dpadUp) moveY = -1f
+                    if (gamepadState.dpadDown) moveY = 1f
 
-                val speed = 0.6f * dt
-                playerX = (playerX + moveX * speed).coerceIn(0.06f, 0.94f)
-                playerY = (playerY + moveY * speed).coerceIn(0.10f, 0.94f)
+                    val speed = 0.6f * dt
+                    playerX = (playerX + moveX * speed).coerceIn(0.06f, 0.94f)
+                    playerY = (playerY + moveY * speed).coerceIn(0.10f, 0.94f)
+                }
 
                 // 2. Stars scrolling
                 stars.forEach { star ->

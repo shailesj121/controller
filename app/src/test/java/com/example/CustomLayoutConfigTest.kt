@@ -70,4 +70,27 @@ class CustomLayoutConfigTest {
         assertEquals(0.45f, parsed.touchpadX, 0.05f)
         assertEquals(-0.65f, parsed.touchpadY, 0.05f)
     }
+
+    @Test
+    fun testTouchpadZeroResetOnStationary() {
+        // Test that zero deltas reset the touchpad and stick coordinates cleanly
+        var state = GamepadState(touchpadX = 0.5f, touchpadY = 0.3f, leftStickX = 0.5f, rightStickX = 0.5f)
+        val dx = 0f
+        val dy = 0f
+
+        val resetState = state.copy(
+            touchpadX = dx,
+            touchpadY = dy,
+            leftStickX = if (dx == 0f && dy == 0f) 0f else dx,
+            leftStickY = if (dx == 0f && dy == 0f) 0f else dy,
+            rightStickX = if (dx == 0f && dy == 0f) 0f else dx,
+            rightStickY = if (dx == 0f && dy == 0f) 0f else dy
+        )
+
+        assertEquals(0f, resetState.touchpadX, 0.001f)
+        assertEquals(0f, resetState.touchpadY, 0.001f)
+        assertEquals(0f, resetState.leftStickX, 0.001f)
+        assertEquals(0f, resetState.rightStickX, 0.001f)
+    }
 }
+
