@@ -116,6 +116,16 @@ fun UnifiedConnectionDialog(
     onConnectBluetooth: (String) -> Unit,
     onDisconnectBluetooth: () -> Unit,
     onRefreshBluetooth: () -> Unit,
+    // Bluetooth HID (Minecraft / PC Gamepad)
+    isHidSupported: Boolean = false,
+    isHidRegistered: Boolean = false,
+    isHidConnected: Boolean = false,
+    connectedHidDeviceName: String? = null,
+    hidStatusMessage: String = "",
+    pairedHidDevices: List<BluetoothDeviceItem> = emptyList(),
+    onConnectHid: (String) -> Unit = {},
+    onDisconnectHid: () -> Unit = {},
+    onRefreshHid: () -> Unit = {},
     // Layout & settings
     currentLayout: ControllerLayout,
     onSelectLayout: (ControllerLayout) -> Unit,
@@ -132,6 +142,7 @@ fun UnifiedConnectionDialog(
     val isConnected = when (currentMedium) {
         ConnectionMedium.WIFI -> isWifiConnected
         ConnectionMedium.BLUETOOTH -> isBtConnected
+        ConnectionMedium.BLUETOOTH_HID -> isHidConnected
     }
 
     Dialog(
@@ -311,7 +322,17 @@ fun UnifiedConnectionDialog(
                         btStatusMessage = btStatusMessage,
                         onConnectBluetooth = onConnectBluetooth,
                         onDisconnectBluetooth = onDisconnectBluetooth,
-                        onRefreshBluetooth = onRefreshBluetooth
+                        onRefreshBluetooth = onRefreshBluetooth,
+                        // Bluetooth HID
+                        isHidSupported = isHidSupported,
+                        isHidRegistered = isHidRegistered,
+                        isHidConnected = isHidConnected,
+                        connectedHidDeviceName = connectedHidDeviceName,
+                        hidStatusMessage = hidStatusMessage,
+                        pairedHidDevices = pairedHidDevices,
+                        onConnectHid = onConnectHid,
+                        onDisconnectHid = onDisconnectHid,
+                        onRefreshHid = onRefreshHid
                     )
                     1 -> LayoutTabContent(
                         currentLayout = currentLayout,
@@ -343,7 +364,7 @@ private fun DualConnectionTab(
     onConnectWifi: () -> Unit,
     onDisconnectWifi: () -> Unit,
     onRefreshDiscovery: () -> Unit,
-    // Bluetooth
+    // Bluetooth Direct
     isBtConnected: Boolean,
     connectedBtDeviceName: String?,
     pairedBtDevices: List<BluetoothDeviceItem>,
@@ -351,13 +372,24 @@ private fun DualConnectionTab(
     btStatusMessage: String,
     onConnectBluetooth: (String) -> Unit,
     onDisconnectBluetooth: () -> Unit,
-    onRefreshBluetooth: () -> Unit
+    onRefreshBluetooth: () -> Unit,
+    // Bluetooth HID
+    isHidSupported: Boolean,
+    isHidRegistered: Boolean,
+    isHidConnected: Boolean,
+    connectedHidDeviceName: String?,
+    hidStatusMessage: String,
+    pairedHidDevices: List<BluetoothDeviceItem>,
+    onConnectHid: (String) -> Unit,
+    onDisconnectHid: () -> Unit,
+    onRefreshHid: () -> Unit
 ) {
     val context = LocalContext.current
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) {
         onRefreshBluetooth()
+        onRefreshHid()
     }
 
     LaunchedEffect(Unit) {
@@ -373,34 +405,62 @@ private fun DualConnectionTab(
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        // Medium Toggle Bar (Wi-Fi vs Bluetooth)
+        // Medium Toggle Bar (Minecraft Gamepad vs Wi-Fi vs Direct BT)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(10.dp))
                 .background(DarkSurfaceVariant)
-                .padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                .padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(3.dp)
         ) {
+            Box(
+                modifier = Modifier
+                    .weight(1.2f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (currentMedium == ConnectionMedium.BLUETOOTH_HID) VividIndigo else Color.Transparent)
+                    .clickable {
+                        onSelectMedium(ConnectionMedium.BLUETOOTH_HID)
+                        onRefreshHid()
+                    }
+                    .padding(vertical = 7.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(
+                        Icons.Default.SportsEsports,
+                        contentDescription = null,
+                        modifier = Modifier.size(15.dp),
+                        tint = if (currentMedium == ConnectionMedium.BLUETOOTH_HID) Color.White else TextSecondary
+                    )
+                    Text(
+                        "Minecraft/PC",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (currentMedium == ConnectionMedium.BLUETOOTH_HID) Color.White else TextSecondary
+                    )
+                }
+            }
+
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(8.dp))
                     .background(if (currentMedium == ConnectionMedium.WIFI) ElectricCyan else Color.Transparent)
                     .clickable { onSelectMedium(ConnectionMedium.WIFI) }
-                    .padding(vertical = 8.dp),
+                    .padding(vertical = 7.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Icon(
                         Icons.Default.Wifi,
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(15.dp),
                         tint = if (currentMedium == ConnectionMedium.WIFI) Color(0xFF00363D) else TextSecondary
                     )
                     Text(
-                        "Wi-Fi (UDP LAN)",
-                        fontSize = 12.sp,
+                        "Wi-Fi LAN",
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (currentMedium == ConnectionMedium.WIFI) Color(0xFF00363D) else TextSecondary
                     )
@@ -411,26 +471,26 @@ private fun DualConnectionTab(
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(if (currentMedium == ConnectionMedium.BLUETOOTH) VividIndigo else Color.Transparent)
+                    .background(if (currentMedium == ConnectionMedium.BLUETOOTH) ElectricCyan else Color.Transparent)
                     .clickable {
                         onSelectMedium(ConnectionMedium.BLUETOOTH)
                         onRefreshBluetooth()
                     }
-                    .padding(vertical = 8.dp),
+                    .padding(vertical = 7.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Icon(
                         Icons.Default.Bluetooth,
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = if (currentMedium == ConnectionMedium.BLUETOOTH) Color.White else TextSecondary
+                        modifier = Modifier.size(15.dp),
+                        tint = if (currentMedium == ConnectionMedium.BLUETOOTH) Color(0xFF00363D) else TextSecondary
                     )
                     Text(
-                        "Bluetooth (Direct)",
-                        fontSize = 12.sp,
+                        "Direct BT",
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (currentMedium == ConnectionMedium.BLUETOOTH) Color.White else TextSecondary
+                        color = if (currentMedium == ConnectionMedium.BLUETOOTH) Color(0xFF00363D) else TextSecondary
                     )
                 }
             }
@@ -438,16 +498,48 @@ private fun DualConnectionTab(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        if (currentMedium == ConnectionMedium.WIFI) {
-            // Wi-Fi Connection UI
-            WifiConnectionSection(
-                discoveredHosts = discoveredHosts,
-                inputIp = inputIp,
-                inputPort = inputPort,
-                isWifiConnected = isWifiConnected,
-                onIpChange = onIpChange,
-                onPortChange = onPortChange,
-                onConnectWifi = onConnectWifi,
+        when (currentMedium) {
+            ConnectionMedium.BLUETOOTH_HID -> {
+                BluetoothHidConnectionSection(
+                    isHidSupported = isHidSupported,
+                    isHidRegistered = isHidRegistered,
+                    isHidConnected = isHidConnected,
+                    connectedHidDeviceName = connectedHidDeviceName,
+                    hidStatusMessage = hidStatusMessage,
+                    pairedHidDevices = pairedHidDevices,
+                    onConnectHid = onConnectHid,
+                    onDisconnectHid = onDisconnectHid,
+                    onRefreshHid = onRefreshHid
+                )
+            }
+            ConnectionMedium.WIFI -> {
+                WifiConnectionSection(
+                    discoveredHosts = discoveredHosts,
+                    inputIp = inputIp,
+                    inputPort = inputPort,
+                    isWifiConnected = isWifiConnected,
+                    onIpChange = onIpChange,
+                    onPortChange = onPortChange,
+                    onConnectWifi = onConnectWifi,
+                    onDisconnectWifi = onDisconnectWifi,
+                    onRefreshDiscovery = onRefreshDiscovery
+                )
+            }
+            ConnectionMedium.BLUETOOTH -> {
+                BluetoothConnectionSection(
+                    isBtConnected = isBtConnected,
+                    connectedBtDeviceName = connectedBtDeviceName,
+                    pairedBtDevices = pairedBtDevices,
+                    isBluetoothEnabled = isBluetoothEnabled,
+                    btStatusMessage = btStatusMessage,
+                    onConnectBluetooth = onConnectBluetooth,
+                    onDisconnectBluetooth = onDisconnectBluetooth,
+                    onRefreshBluetooth = onRefreshBluetooth
+                )
+            }
+        }
+    }
+}
                 onDisconnectWifi = onDisconnectWifi,
                 onRefreshDiscovery = onRefreshDiscovery
             )
@@ -763,3 +855,147 @@ private fun BluetoothConnectionSection(
         }
     }
 }
+
+@Composable
+private fun BluetoothHidConnectionSection(
+    isHidSupported: Boolean,
+    isHidRegistered: Boolean,
+    isHidConnected: Boolean,
+    connectedHidDeviceName: String?,
+    hidStatusMessage: String,
+    pairedHidDevices: List<BluetoothDeviceItem>,
+    onConnectHid: (String) -> Unit,
+    onDisconnectHid: () -> Unit,
+    onRefreshHid: () -> Unit
+) {
+    val context = LocalContext.current
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // Feature Info Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = VividIndigo.copy(alpha = 0.15f)),
+            shape = RoundedCornerShape(10.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, VividIndigo.copy(alpha = 0.4f))
+        ) {
+            Column(modifier = Modifier.padding(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(Icons.Default.SportsEsports, contentDescription = null, tint = ElectricCyan, modifier = Modifier.size(16.dp))
+                    Text("Standard Bluetooth Gamepad Mode", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.White)
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Controls Minecraft, Call of Duty, Emulators, Android phones, tablets, and Windows PC. Detected by games as an official physical controller!",
+                    fontSize = 10.sp,
+                    color = TextSecondary,
+                    lineHeight = 14.sp
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Status pill
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(6.dp))
+                .background(if (isHidConnected) EmeraldGreen.copy(alpha = 0.2f) else DarkSurfaceElevated)
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = if (isHidConnected) "Linked to $connectedHidDeviceName" else hidStatusMessage,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (isHidConnected) EmeraldGreen else ElectricCyan
+            )
+            IconButton(onClick = onRefreshHid, modifier = Modifier.size(24.dp)) {
+                Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = ElectricCyan, modifier = Modifier.size(14.dp))
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "Select Paired Device (Minecraft Host / PC):",
+            style = MaterialTheme.typography.labelSmall,
+            color = TextSecondary
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+
+        if (pairedHidDevices.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(60.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(DarkSurfaceVariant)
+                    .padding(8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "No paired devices found.\nPair with your Minecraft device in Android Settings first!",
+                    fontSize = 10.sp,
+                    color = TextSecondary,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        } else {
+            LazyColumn(modifier = Modifier.height(100.dp)) {
+                items(pairedHidDevices) { device ->
+                    val isThisConnected = isHidConnected && connectedHidDeviceName?.contains(device.name, ignoreCase = true) == true
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (isThisConnected) EmeraldGreen.copy(alpha = 0.15f) else DarkSurfaceElevated)
+                            .clickable {
+                                if (isThisConnected) onDisconnectHid() else onConnectHid(device.address)
+                            }
+                            .padding(horizontal = 12.dp, vertical = 7.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(
+                                if (isThisConnected) Icons.Default.SportsEsports else Icons.Default.Bluetooth,
+                                contentDescription = null,
+                                tint = if (isThisConnected) EmeraldGreen else ElectricCyan,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Column {
+                                Text(device.name, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = TextPrimary)
+                                Text(device.address, fontSize = 9.sp, color = TextSecondary)
+                            }
+                        }
+
+                        Text(
+                            text = if (isThisConnected) "Disconnect" else "Connect Gamepad >",
+                            color = if (isThisConnected) CoralRed else ElectricCyan,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (isHidConnected) {
+            Button(
+                onClick = onDisconnectHid,
+                colors = ButtonDefaults.buttonColors(containerColor = CoralRed),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Disconnect Gamepad", fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+

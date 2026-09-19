@@ -193,7 +193,8 @@ enum class AppRole(val title: String) {
 
 enum class ConnectionMedium(val title: String) {
     WIFI("Wi-Fi (UDP LAN)"),
-    BLUETOOTH("Bluetooth (Direct Link)")
+    BLUETOOTH("Bluetooth (Direct Link)"),
+    BLUETOOTH_HID("Bluetooth Gamepad (Minecraft / PC)")
 }
 
 data class BluetoothDeviceItem(

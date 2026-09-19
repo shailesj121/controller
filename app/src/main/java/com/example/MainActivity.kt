@@ -77,6 +77,14 @@ fun MainContent(viewModel: AppViewModel) {
   val isBluetoothEnabled by viewModel.bluetoothManager.isBluetoothEnabled.collectAsStateWithLifecycle()
   val btStatusMessage by viewModel.bluetoothManager.statusMessage.collectAsStateWithLifecycle()
 
+  // Bluetooth HID (Minecraft / PC Gamepad) states
+  val isHidSupported by viewModel.hidManager.isSupported.collectAsStateWithLifecycle()
+  val isHidRegistered by viewModel.hidManager.isRegistered.collectAsStateWithLifecycle()
+  val isHidConnected by viewModel.hidManager.isConnected.collectAsStateWithLifecycle()
+  val connectedHidDeviceName by viewModel.hidManager.connectedDeviceName.collectAsStateWithLifecycle()
+  val hidStatusMessage by viewModel.hidManager.statusMessage.collectAsStateWithLifecycle()
+  val pairedHidDevices by viewModel.hidManager.pairedDevices.collectAsStateWithLifecycle()
+
   // Server states
   val serverIp by viewModel.server.serverIp.collectAsStateWithLifecycle()
   val connectedClientIp by viewModel.server.connectedClient.collectAsStateWithLifecycle()
@@ -98,6 +106,7 @@ fun MainContent(viewModel: AppViewModel) {
         onStateUpdated = { viewModel.updateLocalState(it) },
         onOpenSettings = {
           viewModel.bluetoothManager.checkBluetoothStatus()
+          viewModel.hidManager.refreshPairedDevices()
           showConnectionDialog = true
         },
         onSwitchToReceiver = { viewModel.setAppRole(AppRole.RECEIVER) },
@@ -159,6 +168,23 @@ fun MainContent(viewModel: AppViewModel) {
       },
       onRefreshBluetooth = {
         viewModel.bluetoothManager.checkBluetoothStatus()
+      },
+      // Bluetooth HID (Minecraft / PC Gamepad)
+      isHidSupported = isHidSupported,
+      isHidRegistered = isHidRegistered,
+      isHidConnected = isHidConnected,
+      connectedHidDeviceName = connectedHidDeviceName,
+      hidStatusMessage = hidStatusMessage,
+      pairedHidDevices = pairedHidDevices,
+      onConnectHid = { address ->
+        viewModel.connectBluetoothHid(address)
+        showConnectionDialog = false
+      },
+      onDisconnectHid = {
+        viewModel.hidManager.disconnect()
+      },
+      onRefreshHid = {
+        viewModel.hidManager.refreshPairedDevices()
       },
       // Layout & Settings
       currentLayout = layout,

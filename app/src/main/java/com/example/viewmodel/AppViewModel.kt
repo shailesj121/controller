@@ -11,6 +11,7 @@ import com.example.model.ControllerLayout
 import com.example.model.DiscoveredHost
 import com.example.model.GamepadState
 import com.example.network.BluetoothGamepadManager
+import com.example.network.BluetoothHidGamepadManager
 import com.example.network.GamepadClient
 import com.example.network.GamepadServer
 import com.example.network.NetworkUtils
@@ -79,15 +80,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     )
 
+    val hidManager = BluetoothHidGamepadManager(
+        context = application,
+        scope = viewModelScope
+    )
+
     // Unified connection status based on active medium
     val isConnected: StateFlow<Boolean> = combine(
         _connectionMedium,
         client.isConnected,
-        bluetoothManager.isConnected
-    ) { medium, wifiConnected, btConnected ->
+        bluetoothManager.isConnected,
+        hidManager.isConnected
+    ) { medium, wifiConnected, btConnected, hidConnected ->
         when (medium) {
             ConnectionMedium.WIFI -> wifiConnected
             ConnectionMedium.BLUETOOTH -> btConnected
+            ConnectionMedium.BLUETOOTH_HID -> hidConnected
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
@@ -119,17 +127,28 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setConnectionMedium(medium: ConnectionMedium) {
         _connectionMedium.value = medium
-        if (medium == ConnectionMedium.BLUETOOTH) {
-            bluetoothManager.checkBluetoothStatus()
-            if (_appRole.value == AppRole.RECEIVER) {
-                bluetoothManager.startServer()
+        when (medium) {
+            ConnectionMedium.BLUETOOTH -> {
+                bluetoothManager.checkBluetoothStatus()
+                if (_appRole.value == AppRole.RECEIVER) {
+                    bluetoothManager.startServer()
+                }
             }
+            ConnectionMedium.BLUETOOTH_HID -> {
+                hidManager.refreshPairedDevices()
+            }
+            ConnectionMedium.WIFI -> {}
         }
     }
 
     fun connectBluetooth(address: String) {
         _connectionMedium.value = ConnectionMedium.BLUETOOTH
         bluetoothManager.connectToDevice(address)
+    }
+
+    fun connectBluetoothHid(address: String) {
+        _connectionMedium.value = ConnectionMedium.BLUETOOTH_HID
+        hidManager.connectToHost(address)
     }
 
     fun setAppRole(role: AppRole) {
@@ -168,6 +187,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun disconnect() {
         client.disconnect()
         bluetoothManager.disconnect()
+        hidManager.disconnect()
     }
 
     fun updateLocalState(newState: GamepadState) {
@@ -175,6 +195,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         when (_connectionMedium.value) {
             ConnectionMedium.WIFI -> client.sendState(newState)
             ConnectionMedium.BLUETOOTH -> bluetoothManager.sendState(newState)
+            ConnectionMedium.BLUETOOTH_HID -> hidManager.sendState(newState)
         }
     }
 
@@ -198,6 +219,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         client.disconnect()
         server.stop()
         bluetoothManager.destroy()
+        hidManager.destroy()
         motionManager.stop()
     }
 }
