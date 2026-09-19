@@ -73,10 +73,10 @@ class BluetoothHidGamepadManager(
             0x95.toByte(), 0x02.toByte(),         //   REPORT_COUNT (2)
             0x81.toByte(), 0x02.toByte(),         //   INPUT (Data, Var, Abs)
 
-            // D-Pad Hat Switch: 1 nibble (4 bits: 0=Null, 1=Up, 2=Up-Right, ..., 8=Up-Left)
+            // D-Pad Hat Switch: 1 nibble (4 bits: 0=Null/Released, 1=Up, 2=Up-Right, ..., 8=Up-Left)
             0x05.toByte(), 0x01.toByte(),         //   USAGE_PAGE (Generic Desktop)
             0x09.toByte(), 0x39.toByte(),         //   USAGE (Hat switch)
-            0x15.toByte(), 0x00.toByte(),         //   LOGICAL_MINIMUM (0)
+            0x15.toByte(), 0x01.toByte(),         //   LOGICAL_MINIMUM (1) - 0 is outside range (Null state)
             0x25.toByte(), 0x08.toByte(),         //   LOGICAL_MAXIMUM (8)
             0x35.toByte(), 0x00.toByte(),         //   PHYSICAL_MINIMUM (0)
             0x46.toByte(), 0x3B.toByte(), 0x01.toByte(), // PHYSICAL_MAXIMUM (315 deg)
@@ -168,6 +168,7 @@ class BluetoothHidGamepadManager(
                         val name = try { device?.name ?: device?.address } catch (_: SecurityException) { "Host Device" }
                         _connectedDeviceName.value = name
                         _statusMessage.value = "Gamepad Linked to $name! Open Minecraft."
+                        sendState(GamepadState())
                     }
                     BluetoothProfile.STATE_CONNECTING -> {
                         _statusMessage.value = "Connecting to ${device?.address}..."
@@ -317,13 +318,17 @@ class BluetoothHidGamepadManager(
             try {
                 val report = ByteArray(9)
 
-                // 1. Left Stick: X, Y (0..255, center 128)
-                report[0] = ((state.leftStickX + 1f) * 127.5f).toInt().coerceIn(0, 255).toByte()
-                report[1] = ((state.leftStickY + 1f) * 127.5f).toInt().coerceIn(0, 255).toByte()
+                // 1. Left Stick: X, Y (0..255, center 128) with deadzone
+                val lx = if (kotlin.math.abs(state.leftStickX) < 0.05f) 128 else ((state.leftStickX + 1f) * 127.5f).toInt().coerceIn(0, 255)
+                val ly = if (kotlin.math.abs(state.leftStickY) < 0.05f) 128 else ((state.leftStickY + 1f) * 127.5f).toInt().coerceIn(0, 255)
+                report[0] = lx.toByte()
+                report[1] = ly.toByte()
 
-                // 2. Right Stick: Z, Rz (0..255, center 128)
-                report[2] = ((state.rightStickX + 1f) * 127.5f).toInt().coerceIn(0, 255).toByte()
-                report[3] = ((state.rightStickY + 1f) * 127.5f).toInt().coerceIn(0, 255).toByte()
+                // 2. Right Stick: Z, Rz (0..255, center 128) with deadzone
+                val rx = if (kotlin.math.abs(state.rightStickX) < 0.05f) 128 else ((state.rightStickX + 1f) * 127.5f).toInt().coerceIn(0, 255)
+                val ry = if (kotlin.math.abs(state.rightStickY) < 0.05f) 128 else ((state.rightStickY + 1f) * 127.5f).toInt().coerceIn(0, 255)
+                report[2] = rx.toByte()
+                report[3] = ry.toByte()
 
                 // 3. Triggers: Left (Rx), Right (Ry) (0..255)
                 val lt = if (state.btnL2 && state.leftTrigger == 0f) 1f else state.leftTrigger
@@ -331,7 +336,7 @@ class BluetoothHidGamepadManager(
                 report[4] = (lt * 255f).toInt().coerceIn(0, 255).toByte()
                 report[5] = (rt * 255f).toInt().coerceIn(0, 255).toByte()
 
-                // 4. D-Pad Hat Switch (4-bit: 0=neutral, 1=N, 2=NE, 3=E, 4=SE, 5=S, 6=SW, 7=W, 8=NW)
+                // 4. D-Pad Hat Switch (4-bit: 0=Null/released, 1=N, 2=NE, 3=E, 4=SE, 5=S, 6=SW, 7=W, 8=NW)
                 val hat = when {
                     state.dpadUp && state.dpadRight -> 2
                     state.dpadDown && state.dpadRight -> 4
@@ -341,33 +346,43 @@ class BluetoothHidGamepadManager(
                     state.dpadRight -> 3
                     state.dpadDown -> 5
                     state.dpadLeft -> 7
-                    else -> 0
+                    else -> 0 // 0 is outside [1, 8] range, correctly signaling NULL (released)
                 }
                 report[6] = (hat and 0x0F).toByte()
 
-                // 5. Buttons 1-8:
-                // Bit 0: A, Bit 1: B, Bit 2: X, Bit 3: Y, Bit 4: L1, Bit 5: R1, Bit 6: L2, Bit 7: R2
-                var b1 = 0
-                if (state.btnA) b1 = b1 or (1 shl 0)
-                if (state.btnB) b1 = b1 or (1 shl 1)
-                if (state.btnX) b1 = b1 or (1 shl 2)
-                if (state.btnY) b1 = b1 or (1 shl 3)
-                if (state.btnL1) b1 = b1 or (1 shl 4)
-                if (state.btnR1) b1 = b1 or (1 shl 5)
-                if (state.btnL2 || state.leftTrigger > 0.5f) b1 = b1 or (1 shl 6)
-                if (state.btnR2 || state.rightTrigger > 0.5f) b1 = b1 or (1 shl 7)
-                report[7] = b1.toByte()
+                // 5. 16 Action Buttons (aligned with Linux/Android kernel BTN_GAMEPAD sequential mapping):
+                // Bit 0 (0x130): BTN_A
+                // Bit 1 (0x131): BTN_B
+                // Bit 2 (0x132): BTN_C (unused)
+                // Bit 3 (0x133): BTN_X
+                // Bit 4 (0x134): BTN_Y
+                // Bit 5 (0x135): BTN_Z (unused)
+                // Bit 6 (0x136): BTN_TL (L1 / Left Bumper)
+                // Bit 7 (0x137): BTN_TR (R1 / Right Bumper)
+                // Bit 8 (0x138): BTN_TL2 (L2 / Left Trigger Button)
+                // Bit 9 (0x139): BTN_TR2 (R2 / Right Trigger Button)
+                // Bit 10 (0x13A): BTN_SELECT (Select / Back)
+                // Bit 11 (0x13B): BTN_START (Start / Menu)
+                // Bit 12 (0x13C): BTN_MODE (Home / Guide)
+                // Bit 13 (0x13D): BTN_THUMBL (L3 / Left Thumbstick click)
+                // Bit 14 (0x13E): BTN_THUMBR (R3 / Right Thumbstick click)
+                var buttons = 0
+                if (state.btnA) buttons = buttons or (1 shl 0)
+                if (state.btnB) buttons = buttons or (1 shl 1)
+                if (state.btnX) buttons = buttons or (1 shl 3)
+                if (state.btnY) buttons = buttons or (1 shl 4)
+                if (state.btnL1) buttons = buttons or (1 shl 6)
+                if (state.btnR1) buttons = buttons or (1 shl 7)
+                if (state.btnL2 || state.leftTrigger > 0.5f) buttons = buttons or (1 shl 8)
+                if (state.btnR2 || state.rightTrigger > 0.5f) buttons = buttons or (1 shl 9)
+                if (state.btnSelect) buttons = buttons or (1 shl 10)
+                if (state.btnStart) buttons = buttons or (1 shl 11)
+                if (state.btnHome) buttons = buttons or (1 shl 12)
+                if (state.btnL3) buttons = buttons or (1 shl 13)
+                if (state.btnR3) buttons = buttons or (1 shl 14)
 
-                // 6. Buttons 9-16:
-                // Bit 0: Select, Bit 1: Start, Bit 2: L3, Bit 3: R3, Bit 4: Home, Bit 5: Turbo
-                var b2 = 0
-                if (state.btnSelect) b2 = b2 or (1 shl 0)
-                if (state.btnStart) b2 = b2 or (1 shl 1)
-                if (state.btnL3) b2 = b2 or (1 shl 2)
-                if (state.btnR3) b2 = b2 or (1 shl 3)
-                if (state.btnHome) b2 = b2 or (1 shl 4)
-                if (state.btnTurbo) b2 = b2 or (1 shl 5)
-                report[8] = b2.toByte()
+                report[7] = (buttons and 0xFF).toByte()
+                report[8] = ((buttons shr 8) and 0xFF).toByte()
 
                 lastReportBytes = report
                 dev.sendReport(host, REPORT_ID_GAMEPAD, report)
