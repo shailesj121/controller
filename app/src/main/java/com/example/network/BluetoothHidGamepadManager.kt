@@ -64,9 +64,10 @@ class BluetoothHidGamepadManager(
             0x95.toByte(), 0x02.toByte(),         //   REPORT_COUNT (2)
             0x81.toByte(), 0x02.toByte(),         //   INPUT (Data, Var, Abs)
 
-            // Analog Triggers (Rx, Ry): 2 bytes (0 to 255)
-            0x09.toByte(), 0x33.toByte(),         //   USAGE (Rx - Left Trigger)
-            0x09.toByte(), 0x34.toByte(),         //   USAGE (Ry - Right Trigger)
+            // Analog Triggers (Brake, Accelerator): 2 bytes (0 to 255, resting 0)
+            0x05.toByte(), 0x02.toByte(),         //   USAGE_PAGE (Simulation Controls)
+            0x09.toByte(), 0xC5.toByte(),         //   USAGE (Brake - Left Trigger)
+            0x09.toByte(), 0xC4.toByte(),         //   USAGE (Accelerator - Right Trigger)
             0x15.toByte(), 0x00.toByte(),         //   LOGICAL_MINIMUM (0)
             0x26.toByte(), 0xFF.toByte(), 0x00.toByte(), // LOGICAL_MAXIMUM (255)
             0x75.toByte(), 0x08.toByte(),         //   REPORT_SIZE (8)
