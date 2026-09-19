@@ -8,9 +8,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -219,7 +219,7 @@ fun DPad(
                     .size(28.dp)
             )
             Icon(
-                imageVector = Icons.Default.KeyboardArrowLeft,
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
                 contentDescription = "DPad Left",
                 tint = if (leftPressed) ElectricCyan else Color(0xFF94A3B8),
                 modifier = Modifier
@@ -227,7 +227,7 @@ fun DPad(
                     .size(28.dp)
             )
             Icon(
-                imageVector = Icons.Default.KeyboardArrowRight,
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = "DPad Right",
                 tint = if (rightPressed) ElectricCyan else Color(0xFF94A3B8),
                 modifier = Modifier
