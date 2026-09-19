@@ -1,0 +1,6 @@
+{
+  "name": "Game Controller",
+  "description": "Turn your phone into a game controller for tablets and screens with customizable dual analog sticks, D-pad, motion steering, low-latency wireless link, and built-in interactive console games.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
