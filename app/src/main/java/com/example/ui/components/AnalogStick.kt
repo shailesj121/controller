@@ -48,6 +48,7 @@ fun AnalogStick(
     size: Dp = 150.dp,
     label: String = "L",
     deadzone: Float = 0.08f,
+    enabled: Boolean = true,
     onMove: (x: Float, y: Float) -> Unit,
     onPressL3R3: (() -> Unit)? = null
 ) {
@@ -63,66 +64,70 @@ fun AnalogStick(
             .testTag("analog_stick_$label")
             .clip(CircleShape)
             .background(StickBaseColor)
-            .pointerInput(Unit) {
-                val radius = (size.toPx() / 2f)
-                val maxDistance = radius * 0.75f
+            .then(
+                if (enabled) {
+                    Modifier.pointerInput(Unit) {
+                        val radius = (size.toPx() / 2f)
+                        val maxDistance = radius * 0.75f
 
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    val pointerId = down.id
-                    isDragging = true
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            val pointerId = down.id
+                            isDragging = true
 
-                    fun updateStickPosition(pos: Offset) {
-                        val center = Offset(radius, radius)
-                        val delta = pos - center
-                        val dist = delta.getDistance()
-                        val angle = atan2(delta.y, delta.x)
-                        val clampedDist = min(dist, maxDistance)
+                            fun updateStickPosition(pos: Offset) {
+                                val center = Offset(radius, radius)
+                                val delta = pos - center
+                                val dist = delta.getDistance()
+                                val angle = atan2(delta.y, delta.x)
+                                val clampedDist = min(dist, maxDistance)
 
-                        val curX = clampedDist * cos(angle)
-                        val curY = clampedDist * sin(angle)
+                                val curX = clampedDist * cos(angle)
+                                val curY = clampedDist * sin(angle)
 
-                        coroutineScope.launch {
-                            animatedOffsetX.snapTo(curX)
-                            animatedOffsetY.snapTo(curY)
-                        }
+                                coroutineScope.launch {
+                                    animatedOffsetX.snapTo(curX)
+                                    animatedOffsetY.snapTo(curY)
+                                }
 
-                        // Normalize (-1.0 to 1.0)
-                        val normX = (curX / maxDistance).coerceIn(-1f, 1f)
-                        val normY = (curY / maxDistance).coerceIn(-1f, 1f)
-                        val rawDist = sqrt(normX * normX + normY * normY)
-                        if (rawDist < deadzone) {
-                            onMove(0f, 0f)
-                        } else {
-                            onMove(normX, normY)
-                        }
-                    }
-
-                    try {
-                        updateStickPosition(down.position)
-
-                        do {
-                            val event = awaitPointerEvent()
-                            val change = event.changes.find { it.id == pointerId }
-                            if (change != null && change.pressed) {
-                                change.consume()
-                                updateStickPosition(change.position)
-                            } else {
-                                break
+                                // Normalize (-1.0 to 1.0)
+                                val normX = (curX / maxDistance).coerceIn(-1f, 1f)
+                                val normY = (curY / maxDistance).coerceIn(-1f, 1f)
+                                val rawDist = sqrt(normX * normX + normY * normY)
+                                if (rawDist < deadzone) {
+                                    onMove(0f, 0f)
+                                } else {
+                                    onMove(normX, normY)
+                                }
                             }
-                        } while (change != null && change.pressed)
-                    } finally {
-                        isDragging = false
-                        coroutineScope.launch {
-                            animatedOffsetX.animateTo(0f, spring(dampingRatio = 0.5f, stiffness = 600f))
+
+                            try {
+                                updateStickPosition(down.position)
+
+                                do {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.find { it.id == pointerId }
+                                    if (change != null && change.pressed) {
+                                        change.consume()
+                                        updateStickPosition(change.position)
+                                    } else {
+                                        break
+                                    }
+                                } while (change != null && change.pressed)
+                            } finally {
+                                isDragging = false
+                                coroutineScope.launch {
+                                    animatedOffsetX.animateTo(0f, spring(dampingRatio = 0.5f, stiffness = 600f))
+                                }
+                                coroutineScope.launch {
+                                    animatedOffsetY.animateTo(0f, spring(dampingRatio = 0.5f, stiffness = 600f))
+                                }
+                                onMove(0f, 0f)
+                            }
                         }
-                        coroutineScope.launch {
-                            animatedOffsetY.animateTo(0f, spring(dampingRatio = 0.5f, stiffness = 600f))
-                        }
-                        onMove(0f, 0f)
                     }
-                }
-            },
+                } else Modifier
+            ),
         contentAlignment = Alignment.Center
     ) {
         // Base plate graphic with concentric tactile notches

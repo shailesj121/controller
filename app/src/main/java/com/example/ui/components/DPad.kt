@@ -41,6 +41,7 @@ import kotlin.math.atan2
 fun DPad(
     modifier: Modifier = Modifier,
     dpadSize: Dp = 150.dp,
+    enabled: Boolean = true,
     onDirectionChange: (up: Boolean, down: Boolean, left: Boolean, right: Boolean) -> Unit
 ) {
     var upPressed by remember { mutableStateOf(false) }
@@ -95,31 +96,35 @@ fun DPad(
         modifier = modifier
             .size(dpadSize)
             .testTag("dpad_controller")
-            .pointerInput(Unit) {
-                val inputWidth = size.width.toFloat()
-                val inputHeight = size.height.toFloat()
+            .then(
+                if (enabled) {
+                    Modifier.pointerInput(Unit) {
+                        val inputWidth = size.width.toFloat()
+                        val inputHeight = size.height.toFloat()
 
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    val pointerId = down.id
-                    try {
-                        handleOffset(down.position, inputWidth, inputHeight)
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            val pointerId = down.id
+                            try {
+                                handleOffset(down.position, inputWidth, inputHeight)
 
-                        do {
-                            val event = awaitPointerEvent()
-                            val change = event.changes.find { it.id == pointerId }
-                            if (change != null && change.pressed) {
-                                change.consume()
-                                handleOffset(change.position, inputWidth, inputHeight)
-                            } else {
-                                break
+                                do {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.find { it.id == pointerId }
+                                    if (change != null && change.pressed) {
+                                        change.consume()
+                                        handleOffset(change.position, inputWidth, inputHeight)
+                                    } else {
+                                        break
+                                    }
+                                } while (change != null && change.pressed)
+                            } finally {
+                                updateDirection(false, false, false, false)
                             }
-                        } while (change != null && change.pressed)
-                    } finally {
-                        updateDirection(false, false, false, false)
+                        }
                     }
-                }
-            },
+                } else Modifier
+            ),
         contentAlignment = Alignment.Center
     ) {
         // Cross drawing

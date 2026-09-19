@@ -33,6 +33,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,6 +62,9 @@ import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.TextTertiary
 import com.example.ui.theme.VividIndigo
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 /**
@@ -82,6 +86,7 @@ fun Touchpad(
     height: Dp = 120.dp,
     label: String = "TRACKPAD",
     sensitivity: Float = 0.08f,
+    enabled: Boolean = true,
     onRelativeMove: (deltaX: Float, deltaY: Float) -> Unit,
     onClickChange: (isPressed: Boolean) -> Unit,
     onRightClickChange: ((isPressed: Boolean) -> Unit)? = null,
@@ -91,8 +96,8 @@ fun Touchpad(
     var isLeftClicked by remember { mutableStateOf(false) }
     var isRightClicked by remember { mutableStateOf(false) }
 
-    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
-    var autoZeroJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    val coroutineScope = rememberCoroutineScope()
+    var autoZeroJob by remember { mutableStateOf<Job?>(null) }
 
     // Virtual cursor position for genuine trackpad pointer visualization
     var cursorX by remember { mutableFloatStateOf(0.5f) }
@@ -142,9 +147,11 @@ fun Touchpad(
                         color = if (isTouchingSurface) ElectricCyan.copy(alpha = 0.6f) else Color(0xFF222D42),
                         shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomStart = 3.dp, bottomEnd = 3.dp)
                     )
-                    .pointerInput(Unit) {
-                        awaitEachGesture {
-                            val down = awaitFirstDown(requireUnconsumed = false)
+                    .then(
+                        if (enabled) {
+                            Modifier.pointerInput(Unit) {
+                                awaitEachGesture {
+                                    val down = awaitFirstDown(requireUnconsumed = false)
                             val pointerId = down.id
                             var lastPos = down.position
                             val downTime = System.currentTimeMillis()
@@ -191,7 +198,7 @@ fun Touchpad(
 
                                         // Fallback auto-zero timer in case Android stops sending events while finger is held completely motionless
                                         autoZeroJob = coroutineScope.launch {
-                                            kotlinx.coroutines.delay(25)
+                                            delay(25)
                                             onRelativeMove(0f, 0f)
                                         }
                                     } else {
@@ -218,7 +225,8 @@ fun Touchpad(
                                 }
                             }
                         }
-                    }
+                    } else Modifier
+                )
             ) {
                 // Frosted Glass / Trackpad Canvas Texture
                 Canvas(modifier = Modifier.fillMaxSize()) {
@@ -359,20 +367,24 @@ fun Touchpad(
                             color = if (isLeftClicked) ElectricCyan else DarkBorder,
                             shape = RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 2.dp, topStart = 2.dp, topEnd = 2.dp)
                         )
-                        .pointerInput(Unit) {
-                            awaitEachGesture {
-                                awaitFirstDown(requireUnconsumed = false)
-                                isLeftClicked = true
-                                onTriggerHaptic?.invoke()
-                                onClickChange(true)
-                                try {
-                                    waitForUpOrCancellation()
-                                } finally {
-                                    isLeftClicked = false
-                                    onClickChange(false)
+                        .then(
+                            if (enabled) {
+                                Modifier.pointerInput(Unit) {
+                                    awaitEachGesture {
+                                        awaitFirstDown(requireUnconsumed = false)
+                                        isLeftClicked = true
+                                        onTriggerHaptic?.invoke()
+                                        onClickChange(true)
+                                        try {
+                                            waitForUpOrCancellation()
+                                        } finally {
+                                            isLeftClicked = false
+                                            onClickChange(false)
+                                        }
+                                    }
                                 }
-                            }
-                        },
+                            } else Modifier
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -403,20 +415,24 @@ fun Touchpad(
                             color = if (isRightClicked) VividIndigo else DarkBorder,
                             shape = RoundedCornerShape(bottomEnd = 8.dp, bottomStart = 2.dp, topEnd = 2.dp, topStart = 2.dp)
                         )
-                        .pointerInput(Unit) {
-                            awaitEachGesture {
-                                awaitFirstDown(requireUnconsumed = false)
-                                isRightClicked = true
-                                onTriggerHaptic?.invoke()
-                                onRightClickChange?.invoke(true)
-                                try {
-                                    waitForUpOrCancellation()
-                                } finally {
-                                    isRightClicked = false
-                                    onRightClickChange?.invoke(false)
+                        .then(
+                            if (enabled) {
+                                Modifier.pointerInput(Unit) {
+                                    awaitEachGesture {
+                                        awaitFirstDown(requireUnconsumed = false)
+                                        isRightClicked = true
+                                        onTriggerHaptic?.invoke()
+                                        onRightClickChange?.invoke(true)
+                                        try {
+                                            waitForUpOrCancellation()
+                                        } finally {
+                                            isRightClicked = false
+                                            onRightClickChange?.invoke(false)
+                                        }
+                                    }
                                 }
-                            }
-                        },
+                            } else Modifier
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(

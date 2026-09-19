@@ -46,12 +46,13 @@ fun ShoulderBumper(
     width: Dp = 90.dp,
     height: Dp = 38.dp,
     accentColor: Color = ElectricCyan,
+    enabled: Boolean = true,
     onPressChange: (Boolean) -> Unit
 ) {
     var isPressed by remember { mutableStateOf(false) }
 
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.94f else 1.0f,
+        targetValue = if (isPressed && enabled) 0.94f else 1.0f,
         animationSpec = tween(50),
         label = "bumper_scale"
     )
@@ -66,52 +67,56 @@ fun ShoulderBumper(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        if (isPressed) accentColor.copy(alpha = 0.4f) else DarkSurfaceVariant,
-                        if (isPressed) accentColor.copy(alpha = 0.15f) else Color(0xFF131A29)
+                        if (isPressed && enabled) accentColor.copy(alpha = 0.4f) else DarkSurfaceVariant,
+                        if (isPressed && enabled) accentColor.copy(alpha = 0.15f) else Color(0xFF131A29)
                     )
                 )
             )
             .border(
-                width = if (isPressed) 2.dp else 1.dp,
-                color = if (isPressed) accentColor else DarkBorder,
+                width = if (isPressed && enabled) 2.dp else 1.dp,
+                color = if (isPressed && enabled) accentColor else DarkBorder,
                 shape = RoundedCornerShape(8.dp)
             )
-            .pointerInput(Unit) {
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    val pointerId = down.id
-                    val w = this.size.width.toFloat()
-                    val h = this.size.height.toFloat()
-                    val slack = 24f
+            .then(
+                if (enabled) {
+                    Modifier.pointerInput(Unit) {
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            val pointerId = down.id
+                            val w = this.size.width.toFloat()
+                            val h = this.size.height.toFloat()
+                            val slack = 24f
 
-                    isPressed = true
-                    onPressChange(true)
+                            isPressed = true
+                            onPressChange(true)
 
-                    try {
-                        do {
-                            val event = awaitPointerEvent()
-                            val change = event.changes.find { it.id == pointerId }
-                            if (change == null || !change.pressed) {
-                                break
+                            try {
+                                do {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.find { it.id == pointerId }
+                                    if (change == null || !change.pressed) {
+                                        break
+                                    }
+                                    if (change.position.x < -slack || change.position.x > w + slack ||
+                                        change.position.y < -slack || change.position.y > h + slack) {
+                                        break
+                                    }
+                                } while (true)
+                            } finally {
+                                isPressed = false
+                                onPressChange(false)
                             }
-                            if (change.position.x < -slack || change.position.x > w + slack ||
-                                change.position.y < -slack || change.position.y > h + slack) {
-                                break
-                            }
-                        } while (true)
-                    } finally {
-                        isPressed = false
-                        onPressChange(false)
+                        }
                     }
-                }
-            },
+                } else Modifier
+            ),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
-            color = if (isPressed) Color.White else Color(0xFFE2E8F0)
+            color = if (isPressed && enabled) Color.White else Color(0xFFE2E8F0)
         )
     }
 }
@@ -121,6 +126,7 @@ fun ShoulderGroup(
     bumperLabel: String,
     triggerLabel: String,
     accentColor: Color = ElectricCyan,
+    enabled: Boolean = true,
     onBumperChange: (Boolean) -> Unit,
     onTriggerChange: (Boolean) -> Unit
 ) {
@@ -133,6 +139,7 @@ fun ShoulderGroup(
             width = 76.dp,
             height = 36.dp,
             accentColor = accentColor,
+            enabled = enabled,
             onPressChange = onBumperChange
         )
         ShoulderBumper(
@@ -140,6 +147,7 @@ fun ShoulderGroup(
             width = 76.dp,
             height = 36.dp,
             accentColor = accentColor,
+            enabled = enabled,
             onPressChange = onTriggerChange
         )
     }

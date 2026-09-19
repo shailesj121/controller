@@ -39,12 +39,13 @@ fun GameButton(
     size: Dp = 64.dp,
     accentColor: Color,
     testTag: String = "game_btn_$label",
+    enabled: Boolean = true,
     onPressChange: (isPressed: Boolean) -> Unit
 ) {
     var isPressed by remember { mutableStateOf(false) }
 
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.90f else 1.0f,
+        targetValue = if (isPressed && enabled) 0.90f else 1.0f,
         animationSpec = tween(durationMillis = 50),
         label = "button_scale"
     )
@@ -58,15 +59,17 @@ fun GameButton(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        if (isPressed) accentColor.copy(alpha = 0.35f) else DarkSurfaceVariant,
-                        if (isPressed) accentColor.copy(alpha = 0.15f) else Color(0xFF141B2B)
+                        if (isPressed && enabled) accentColor.copy(alpha = 0.35f) else DarkSurfaceVariant,
+                        if (isPressed && enabled) accentColor.copy(alpha = 0.15f) else Color(0xFF141B2B)
                     )
                 )
             )
-            .pointerInput(Unit) {
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    val pointerId = down.id
+            .then(
+                if (enabled) {
+                    Modifier.pointerInput(Unit) {
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            val pointerId = down.id
                     val radius = this.size.width.toFloat() / 2f
                     val maxRadius = radius * 1.35f
                     val center = Offset(radius, radius)
@@ -90,9 +93,10 @@ fun GameButton(
                     } finally {
                         isPressed = false
                         onPressChange(false)
+                        }
                     }
-                }
-            },
+                } else Modifier
+            ),
         contentAlignment = Alignment.Center
     ) {
         // Glowing outline & inner rim
