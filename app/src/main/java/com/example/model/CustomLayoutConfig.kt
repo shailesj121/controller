@@ -53,7 +53,18 @@ data class CustomLayoutConfig(
     val touchpad: ElementLayoutConfig = ElementLayoutConfig(visible = true),
     val steeringWheel: ElementLayoutConfig = ElementLayoutConfig(),
     val pedals: ElementLayoutConfig = ElementLayoutConfig(),
-    val racingSystems: ElementLayoutConfig = ElementLayoutConfig()
+    val racingSystems: ElementLayoutConfig = ElementLayoutConfig(),
+    // Individual configurable buttons
+    val btnL1: ElementLayoutConfig = ElementLayoutConfig(),
+    val btnL2: ElementLayoutConfig = ElementLayoutConfig(),
+    val btnR1: ElementLayoutConfig = ElementLayoutConfig(),
+    val btnR2: ElementLayoutConfig = ElementLayoutConfig(),
+    val btnA: ElementLayoutConfig = ElementLayoutConfig(),
+    val btnB: ElementLayoutConfig = ElementLayoutConfig(),
+    val btnX: ElementLayoutConfig = ElementLayoutConfig(),
+    val btnY: ElementLayoutConfig = ElementLayoutConfig(),
+    val leftTouchZone: ElementLayoutConfig = ElementLayoutConfig(),
+    val rightTouchZone: ElementLayoutConfig = ElementLayoutConfig()
 ) {
     fun getElement(key: String): ElementLayoutConfig {
         return when (key) {
@@ -68,6 +79,16 @@ data class CustomLayoutConfig(
             KEY_STEERING_WHEEL -> steeringWheel
             KEY_PEDALS -> pedals
             KEY_RACING_SYSTEMS -> racingSystems
+            KEY_BTN_L1 -> btnL1
+            KEY_BTN_L2 -> btnL2
+            KEY_BTN_R1 -> btnR1
+            KEY_BTN_R2 -> btnR2
+            KEY_BTN_A -> btnA
+            KEY_BTN_B -> btnB
+            KEY_BTN_X -> btnX
+            KEY_BTN_Y -> btnY
+            KEY_LEFT_TOUCH_ZONE -> leftTouchZone
+            KEY_RIGHT_TOUCH_ZONE -> rightTouchZone
             else -> ElementLayoutConfig()
         }
     }
@@ -85,6 +106,16 @@ data class CustomLayoutConfig(
             KEY_STEERING_WHEEL -> copy(steeringWheel = config)
             KEY_PEDALS -> copy(pedals = config)
             KEY_RACING_SYSTEMS -> copy(racingSystems = config)
+            KEY_BTN_L1 -> copy(btnL1 = config)
+            KEY_BTN_L2 -> copy(btnL2 = config)
+            KEY_BTN_R1 -> copy(btnR1 = config)
+            KEY_BTN_R2 -> copy(btnR2 = config)
+            KEY_BTN_A -> copy(btnA = config)
+            KEY_BTN_B -> copy(btnB = config)
+            KEY_BTN_X -> copy(btnX = config)
+            KEY_BTN_Y -> copy(btnY = config)
+            KEY_LEFT_TOUCH_ZONE -> copy(leftTouchZone = config)
+            KEY_RIGHT_TOUCH_ZONE -> copy(rightTouchZone = config)
             else -> this
         }
     }
@@ -102,6 +133,16 @@ data class CustomLayoutConfig(
             put(KEY_STEERING_WHEEL, steeringWheel.toJson())
             put(KEY_PEDALS, pedals.toJson())
             put(KEY_RACING_SYSTEMS, racingSystems.toJson())
+            put(KEY_BTN_L1, btnL1.toJson())
+            put(KEY_BTN_L2, btnL2.toJson())
+            put(KEY_BTN_R1, btnR1.toJson())
+            put(KEY_BTN_R2, btnR2.toJson())
+            put(KEY_BTN_A, btnA.toJson())
+            put(KEY_BTN_B, btnB.toJson())
+            put(KEY_BTN_X, btnX.toJson())
+            put(KEY_BTN_Y, btnY.toJson())
+            put(KEY_LEFT_TOUCH_ZONE, leftTouchZone.toJson())
+            put(KEY_RIGHT_TOUCH_ZONE, rightTouchZone.toJson())
         }.toString()
     }
 
@@ -118,6 +159,18 @@ data class CustomLayoutConfig(
         const val KEY_PEDALS = "pedals"
         const val KEY_RACING_SYSTEMS = "racing_systems"
 
+        // Individual button keys
+        const val KEY_BTN_L1 = "btn_l1"
+        const val KEY_BTN_L2 = "btn_l2"
+        const val KEY_BTN_R1 = "btn_r1"
+        const val KEY_BTN_R2 = "btn_r2"
+        const val KEY_BTN_A = "btn_a"
+        const val KEY_BTN_B = "btn_b"
+        const val KEY_BTN_X = "btn_x"
+        const val KEY_BTN_Y = "btn_y"
+        const val KEY_LEFT_TOUCH_ZONE = "left_touch_zone"
+        const val KEY_RIGHT_TOUCH_ZONE = "right_touch_zone"
+
         fun fromJsonString(jsonStr: String?): CustomLayoutConfig {
             if (jsonStr.isNullOrBlank()) return CustomLayoutConfig()
             return try {
@@ -133,7 +186,17 @@ data class CustomLayoutConfig(
                     touchpad = ElementLayoutConfig.fromJson(obj.optJSONObject(KEY_TOUCHPAD)),
                     steeringWheel = ElementLayoutConfig.fromJson(obj.optJSONObject(KEY_STEERING_WHEEL)),
                     pedals = ElementLayoutConfig.fromJson(obj.optJSONObject(KEY_PEDALS)),
-                    racingSystems = ElementLayoutConfig.fromJson(obj.optJSONObject(KEY_RACING_SYSTEMS))
+                    racingSystems = ElementLayoutConfig.fromJson(obj.optJSONObject(KEY_RACING_SYSTEMS)),
+                    btnL1 = ElementLayoutConfig.fromJson(obj.optJSONObject(KEY_BTN_L1)),
+                    btnL2 = ElementLayoutConfig.fromJson(obj.optJSONObject(KEY_BTN_L2)),
+                    btnR1 = ElementLayoutConfig.fromJson(obj.optJSONObject(KEY_BTN_R1)),
+                    btnR2 = ElementLayoutConfig.fromJson(obj.optJSONObject(KEY_BTN_R2)),
+                    btnA = ElementLayoutConfig.fromJson(obj.optJSONObject(KEY_BTN_A)),
+                    btnB = ElementLayoutConfig.fromJson(obj.optJSONObject(KEY_BTN_B)),
+                    btnX = ElementLayoutConfig.fromJson(obj.optJSONObject(KEY_BTN_X)),
+                    btnY = ElementLayoutConfig.fromJson(obj.optJSONObject(KEY_BTN_Y)),
+                    leftTouchZone = ElementLayoutConfig.fromJson(obj.optJSONObject(KEY_LEFT_TOUCH_ZONE)),
+                    rightTouchZone = ElementLayoutConfig.fromJson(obj.optJSONObject(KEY_RIGHT_TOUCH_ZONE))
                 )
             } catch (_: Exception) {
                 CustomLayoutConfig()

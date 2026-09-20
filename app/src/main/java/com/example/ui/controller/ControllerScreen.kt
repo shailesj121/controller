@@ -89,6 +89,9 @@ import com.example.ui.components.GameButton
 import com.example.ui.components.ShoulderBumper
 import com.example.ui.components.ShoulderGroup
 import com.example.ui.components.Touchpad
+import com.example.ui.components.AndroidTouchZone
+import com.example.ui.components.IndividualActionButton
+import com.example.ui.components.IndividualShoulderButton
 import com.example.ui.controller.CustomizableElement
 import com.example.ui.controller.LayoutEditorBar
 import com.example.ui.theme.ButtonAColor
@@ -159,6 +162,17 @@ fun ControllerScreen(
         ) {
             when (layout) {
                 ControllerLayout.MODERN, ControllerLayout.CUSTOM -> ModernGamepadLayout(
+                    state = gamepadState,
+                    isLandscape = isLandscape,
+                    customLayout = customLayout,
+                    isEditMode = isCustomEditMode,
+                    selectedElementKey = selectedElementKey,
+                    onSelectElement = onSelectElement,
+                    onDragOffsetDelta = onDragElementDelta,
+                    onUpdateState = onUpdateState,
+                    onTriggerHaptic = onTriggerHaptic
+                )
+                ControllerLayout.ANDROID_TOUCH -> AndroidTouchControllerLayout(
                     state = gamepadState,
                     isLandscape = isLandscape,
                     customLayout = customLayout,
@@ -1247,6 +1261,362 @@ fun CenterPillButton(
         enabled = enabled,
         onPressChange = onPressChange
     )
+}
+
+@Composable
+fun AndroidTouchControllerLayout(
+    state: GamepadState,
+    isLandscape: Boolean,
+    customLayout: CustomLayoutConfig = CustomLayoutConfig(),
+    isEditMode: Boolean = false,
+    selectedElementKey: String? = null,
+    onSelectElement: (String) -> Unit = {},
+    onDragOffsetDelta: (String, Float, Float) -> Unit = { _, _, _ -> },
+    onUpdateState: ((GamepadState) -> GamepadState) -> Unit,
+    onTriggerHaptic: () -> Unit
+) {
+    val safeTriggerHaptic: () -> Unit = {
+        if (!isEditMode) onTriggerHaptic()
+    }
+    val safeUpdateState: ((GamepadState) -> GamepadState) -> Unit = { transform ->
+        if (!isEditMode) onUpdateState(transform)
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Base Layer: Left and Right Full-Surface Touchpads (Half screen each)
+        if (isLandscape) {
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Left Half: Full-Screen Touchpad for Movement (no rigid joystick knob)
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .weight(1f)
+                ) {
+                    AndroidTouchZone(
+                        label = "TOUCH TO MOVE",
+                        subLabel = "Left Half Touchpad (Full Surface)",
+                        accentColor = ElectricCyan,
+                        enabled = !isEditMode,
+                        onMove = { x, y ->
+                            safeUpdateState { s -> s.copy(leftStickX = x, leftStickY = y) }
+                        },
+                        onTriggerHaptic = safeTriggerHaptic
+                    )
+                }
+
+                // Right Half: Full-Screen Touchpad for Look / Aim
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .weight(1f)
+                ) {
+                    AndroidTouchZone(
+                        label = "TOUCH TO AIM / LOOK",
+                        subLabel = "Right Half Touchpad",
+                        accentColor = VividIndigo,
+                        enabled = !isEditMode,
+                        onMove = { x, y ->
+                            safeUpdateState { s ->
+                                s.copy(
+                                    rightStickX = x,
+                                    rightStickY = y,
+                                    touchpadX = x,
+                                    touchpadY = y
+                                )
+                            }
+                        },
+                        onTriggerHaptic = safeTriggerHaptic
+                    )
+                }
+            }
+        } else {
+            // Portrait Mode: Split Upper and Lower
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                ) {
+                    AndroidTouchZone(
+                        label = "TOUCH TO MOVE",
+                        subLabel = "Upper Touchpad",
+                        accentColor = ElectricCyan,
+                        enabled = !isEditMode,
+                        onMove = { x, y ->
+                            safeUpdateState { s -> s.copy(leftStickX = x, leftStickY = y) }
+                        },
+                        onTriggerHaptic = safeTriggerHaptic
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                ) {
+                    AndroidTouchZone(
+                        label = "TOUCH TO AIM / LOOK",
+                        subLabel = "Lower Touchpad",
+                        accentColor = VividIndigo,
+                        enabled = !isEditMode,
+                        onMove = { x, y ->
+                            safeUpdateState { s ->
+                                s.copy(
+                                    rightStickX = x,
+                                    rightStickY = y,
+                                    touchpadX = x,
+                                    touchpadY = y
+                                )
+                            }
+                        },
+                        onTriggerHaptic = safeTriggerHaptic
+                    )
+                }
+            }
+        }
+
+        // Overlay Layer: Floating Individual Buttons
+        // Every button is individually selectable, resizable, and draggable!
+        Box(modifier = Modifier.fillMaxSize()) {
+            // --- TOP LEFT: Individual L1 and L2 Buttons ---
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(top = if (isLandscape) 6.dp else 10.dp, start = if (isLandscape) 12.dp else 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                CustomizableElement(
+                    elementKey = CustomLayoutConfig.KEY_BTN_L1,
+                    title = "L1",
+                    config = customLayout.btnL1,
+                    isEditMode = isEditMode,
+                    isSelected = selectedElementKey == CustomLayoutConfig.KEY_BTN_L1,
+                    onSelect = { onSelectElement(CustomLayoutConfig.KEY_BTN_L1) },
+                    onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_BTN_L1, dx, dy) }
+                ) {
+                    IndividualShoulderButton(
+                        label = "L1",
+                        accentColor = ElectricCyan,
+                        enabled = !isEditMode,
+                        onPressChange = {
+                            if (it) safeTriggerHaptic()
+                            safeUpdateState { s -> s.copy(btnL1 = it) }
+                        }
+                    )
+                }
+
+                CustomizableElement(
+                    elementKey = CustomLayoutConfig.KEY_BTN_L2,
+                    title = "L2",
+                    config = customLayout.btnL2,
+                    isEditMode = isEditMode,
+                    isSelected = selectedElementKey == CustomLayoutConfig.KEY_BTN_L2,
+                    onSelect = { onSelectElement(CustomLayoutConfig.KEY_BTN_L2) },
+                    onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_BTN_L2, dx, dy) }
+                ) {
+                    IndividualShoulderButton(
+                        label = "L2",
+                        accentColor = ElectricCyan,
+                        enabled = !isEditMode,
+                        onPressChange = {
+                            if (it) safeTriggerHaptic()
+                            safeUpdateState { s -> s.copy(btnL2 = it, leftTrigger = if (it) 1f else 0f) }
+                        }
+                    )
+                }
+            }
+
+            // --- TOP RIGHT: Individual R1 and R2 Buttons ---
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = if (isLandscape) 6.dp else 10.dp, end = if (isLandscape) 12.dp else 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                CustomizableElement(
+                    elementKey = CustomLayoutConfig.KEY_BTN_R1,
+                    title = "R1",
+                    config = customLayout.btnR1,
+                    isEditMode = isEditMode,
+                    isSelected = selectedElementKey == CustomLayoutConfig.KEY_BTN_R1,
+                    onSelect = { onSelectElement(CustomLayoutConfig.KEY_BTN_R1) },
+                    onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_BTN_R1, dx, dy) }
+                ) {
+                    IndividualShoulderButton(
+                        label = "R1",
+                        accentColor = ElectricCyan,
+                        enabled = !isEditMode,
+                        onPressChange = {
+                            if (it) safeTriggerHaptic()
+                            safeUpdateState { s -> s.copy(btnR1 = it) }
+                        }
+                    )
+                }
+
+                CustomizableElement(
+                    elementKey = CustomLayoutConfig.KEY_BTN_R2,
+                    title = "R2",
+                    config = customLayout.btnR2,
+                    isEditMode = isEditMode,
+                    isSelected = selectedElementKey == CustomLayoutConfig.KEY_BTN_R2,
+                    onSelect = { onSelectElement(CustomLayoutConfig.KEY_BTN_R2) },
+                    onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_BTN_R2, dx, dy) }
+                ) {
+                    IndividualShoulderButton(
+                        label = "R2",
+                        accentColor = ElectricCyan,
+                        enabled = !isEditMode,
+                        onPressChange = {
+                            if (it) safeTriggerHaptic()
+                            safeUpdateState { s -> s.copy(btnR2 = it, rightTrigger = if (it) 1f else 0f) }
+                        }
+                    )
+                }
+            }
+
+            // --- CENTER MENU: Select, Start, Home ---
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 44.dp)
+            ) {
+                CustomizableElement(
+                    elementKey = CustomLayoutConfig.KEY_CENTER_PILLS,
+                    title = "MENU",
+                    config = customLayout.centerPills,
+                    isEditMode = isEditMode,
+                    isSelected = selectedElementKey == CustomLayoutConfig.KEY_CENTER_PILLS,
+                    onSelect = { onSelectElement(CustomLayoutConfig.KEY_CENTER_PILLS) },
+                    onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_CENTER_PILLS, dx, dy) }
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        CenterPillButton(label = "SEL", isPressed = state.btnSelect, enabled = !isEditMode) {
+                            if (it) safeTriggerHaptic()
+                            safeUpdateState { s -> s.copy(btnSelect = it) }
+                        }
+                        CenterPillButton(label = "HOME", isPressed = state.btnHome, color = VividIndigo, enabled = !isEditMode) {
+                            if (it) safeTriggerHaptic()
+                            safeUpdateState { s -> s.copy(btnHome = it) }
+                        }
+                        CenterPillButton(label = "START", isPressed = state.btnStart, enabled = !isEditMode) {
+                            if (it) safeTriggerHaptic()
+                            safeUpdateState { s -> s.copy(btnStart = it) }
+                        }
+                    }
+                }
+            }
+
+            // --- RIGHT AREA: Individual Action Buttons (A, B, X, Y) ---
+            val actionClusterAlign = if (isLandscape) Alignment.BottomEnd else Alignment.BottomCenter
+            Box(
+                modifier = Modifier
+                    .align(actionClusterAlign)
+                    .padding(
+                        end = if (isLandscape) 36.dp else 12.dp,
+                        bottom = if (isLandscape) 24.dp else 36.dp
+                    )
+                    .size(175.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                // Button Y (Top)
+                Box(modifier = Modifier.align(Alignment.TopCenter)) {
+                    CustomizableElement(
+                        elementKey = CustomLayoutConfig.KEY_BTN_Y,
+                        title = "Y",
+                        config = customLayout.btnY,
+                        isEditMode = isEditMode,
+                        isSelected = selectedElementKey == CustomLayoutConfig.KEY_BTN_Y,
+                        onSelect = { onSelectElement(CustomLayoutConfig.KEY_BTN_Y) },
+                        onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_BTN_Y, dx, dy) }
+                    ) {
+                        IndividualActionButton(
+                            label = "Y",
+                            accentColor = ButtonYColor,
+                            enabled = !isEditMode,
+                            onPressChange = {
+                                if (it) safeTriggerHaptic()
+                                safeUpdateState { s -> s.copy(btnY = it) }
+                            }
+                        )
+                    }
+                }
+
+                // Button X (Left)
+                Box(modifier = Modifier.align(Alignment.CenterStart)) {
+                    CustomizableElement(
+                        elementKey = CustomLayoutConfig.KEY_BTN_X,
+                        title = "X",
+                        config = customLayout.btnX,
+                        isEditMode = isEditMode,
+                        isSelected = selectedElementKey == CustomLayoutConfig.KEY_BTN_X,
+                        onSelect = { onSelectElement(CustomLayoutConfig.KEY_BTN_X) },
+                        onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_BTN_X, dx, dy) }
+                    ) {
+                        IndividualActionButton(
+                            label = "X",
+                            accentColor = ButtonXColor,
+                            enabled = !isEditMode,
+                            onPressChange = {
+                                if (it) safeTriggerHaptic()
+                                safeUpdateState { s -> s.copy(btnX = it) }
+                            }
+                        )
+                    }
+                }
+
+                // Button B (Right)
+                Box(modifier = Modifier.align(Alignment.CenterEnd)) {
+                    CustomizableElement(
+                        elementKey = CustomLayoutConfig.KEY_BTN_B,
+                        title = "B",
+                        config = customLayout.btnB,
+                        isEditMode = isEditMode,
+                        isSelected = selectedElementKey == CustomLayoutConfig.KEY_BTN_B,
+                        onSelect = { onSelectElement(CustomLayoutConfig.KEY_BTN_B) },
+                        onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_BTN_B, dx, dy) }
+                    ) {
+                        IndividualActionButton(
+                            label = "B",
+                            accentColor = ButtonBColor,
+                            enabled = !isEditMode,
+                            onPressChange = {
+                                if (it) safeTriggerHaptic()
+                                safeUpdateState { s -> s.copy(btnB = it) }
+                            }
+                        )
+                    }
+                }
+
+                // Button A (Bottom)
+                Box(modifier = Modifier.align(Alignment.BottomCenter)) {
+                    CustomizableElement(
+                        elementKey = CustomLayoutConfig.KEY_BTN_A,
+                        title = "A",
+                        config = customLayout.btnA,
+                        isEditMode = isEditMode,
+                        isSelected = selectedElementKey == CustomLayoutConfig.KEY_BTN_A,
+                        onSelect = { onSelectElement(CustomLayoutConfig.KEY_BTN_A) },
+                        onDragOffsetDelta = { dx, dy -> onDragOffsetDelta(CustomLayoutConfig.KEY_BTN_A, dx, dy) }
+                    ) {
+                        IndividualActionButton(
+                            label = "A",
+                            accentColor = ButtonAColor,
+                            enabled = !isEditMode,
+                            onPressChange = {
+                                if (it) safeTriggerHaptic()
+                                safeUpdateState { s -> s.copy(btnA = it) }
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable

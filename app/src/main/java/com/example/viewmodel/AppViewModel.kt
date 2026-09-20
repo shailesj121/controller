@@ -319,10 +319,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setCustomEditMode(enabled: Boolean) {
         _isCustomEditMode.value = enabled
         if (enabled && _selectedElementKey.value == null) {
-            _selectedElementKey.value = if (_currentLayout.value == ControllerLayout.RACING) {
-                CustomLayoutConfig.KEY_STEERING_WHEEL
-            } else {
-                CustomLayoutConfig.KEY_ACTION_BUTTONS
+            _selectedElementKey.value = when (_currentLayout.value) {
+                ControllerLayout.RACING -> CustomLayoutConfig.KEY_STEERING_WHEEL
+                ControllerLayout.ANDROID_TOUCH -> CustomLayoutConfig.KEY_BTN_A
+                else -> CustomLayoutConfig.KEY_ACTION_BUTTONS
             }
         } else if (!enabled) {
             // Auto-save changes whenever exiting custom edit mode so user never loses their tweaks

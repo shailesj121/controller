@@ -208,6 +208,16 @@ fun LayoutEditorBar(
             CustomLayoutConfig.KEY_STEERING_WHEEL -> "Steering Wheel / Joystick"
             CustomLayoutConfig.KEY_PEDALS -> "Pedals (Gas & Brake)"
             CustomLayoutConfig.KEY_RACING_SYSTEMS -> "Racing Systems (NOS / Drift)"
+            CustomLayoutConfig.KEY_BTN_L1 -> "Button L1"
+            CustomLayoutConfig.KEY_BTN_L2 -> "Button L2"
+            CustomLayoutConfig.KEY_BTN_R1 -> "Button R1"
+            CustomLayoutConfig.KEY_BTN_R2 -> "Button R2"
+            CustomLayoutConfig.KEY_BTN_A -> "Button A"
+            CustomLayoutConfig.KEY_BTN_B -> "Button B"
+            CustomLayoutConfig.KEY_BTN_X -> "Button X"
+            CustomLayoutConfig.KEY_BTN_Y -> "Button Y"
+            CustomLayoutConfig.KEY_LEFT_TOUCH_ZONE -> "Left Touchpad (Move)"
+            CustomLayoutConfig.KEY_RIGHT_TOUCH_ZONE -> "Right Touchpad (Aim)"
             else -> "Tap any control to select"
         }
 

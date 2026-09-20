@@ -197,6 +197,7 @@ data class GamepadState(
 
 enum class ControllerLayout(val title: String, val description: String) {
     MODERN("Modern Dual-Stick", "Full analog dual sticks, triggers, bumpers & action buttons"),
+    ANDROID_TOUCH("Android Touch & Buttons", "Half-screen touch movement with individual customizable buttons"),
     RETRO_ARCADE("Retro Arcade", "Direct 8-way D-Pad, oversized arcade action buttons & turbo"),
     RACING("Racing & Pedals", "Tilt/wheel steering with gas pedal, brake pedal & handbrake"),
     CUSTOM("Custom Layout", "Fully customizable button sizes, positions & interactive touchpad")
